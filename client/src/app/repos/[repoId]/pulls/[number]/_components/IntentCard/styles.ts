@@ -1,0 +1,102 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  card: {
+    marginBottom: 18,
+    padding: "14px 16px",
+    borderRadius: 8,
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  } satisfies CSSProperties,
+  title: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "var(--text-primary)",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  } satisfies CSSProperties,
+  intentQuote: {
+    margin: "0 0 12px",
+    padding: "8px 12px",
+    borderLeft: "3px solid var(--accent)",
+    fontSize: 14,
+    fontStyle: "italic",
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  scopeColumns: {
+    display: "flex",
+    gap: 24,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  scopeColumn: {
+    flex: "1 1 220px",
+    minWidth: 0,
+  } satisfies CSSProperties,
+  scopeLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    marginBottom: 6,
+  } satisfies CSSProperties,
+  scopeList: {
+    margin: 0,
+    paddingLeft: 18,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  } satisfies CSSProperties,
+  scopeNone: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  riskSection: {
+    marginTop: 12,
+  } satisfies CSSProperties,
+  riskChips: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 6,
+  } satisfies CSSProperties,
+  missingRefs: {
+    marginTop: 10,
+    fontSize: 12,
+    color: "var(--warn)",
+  } satisfies CSSProperties,
+  stale: {
+    marginTop: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--warn)",
+    background: "var(--warn-bg, transparent)",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--warn)",
+  } satisfies CSSProperties,
+  errorNote: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  skeletonRows: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
+} as const;

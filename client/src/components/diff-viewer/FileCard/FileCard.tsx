@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
+import type { SmartDiffFinding } from "@devdigest/shared";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
 import { parsePatch, type Line } from "../helpers";
 import {
@@ -30,12 +31,45 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  defaultOpen,
+  findings,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** Overrides the size-based auto-expand default when provided (Smart Diff). */
+  defaultOpen?: boolean;
+  /** Smart Diff findings overlaid on this file, if any. */
+  findings?: SmartDiffFinding[];
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
+  // Set by the findings badge: the lowest finding line to scroll to once the
+  // file is open and its lines are rendered.
+  const [jumpLine, setJumpLine] = React.useState<number | null>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  const findingsByLine = React.useMemo(() => {
+    const map = new Map<number, SmartDiffFinding[]>();
+    for (const f of findings ?? []) {
+      const bucket = map.get(f.line);
+      if (bucket) bucket.push(f);
+      else map.set(f.line, [f]);
+    }
+    return map;
+  }, [findings]);
+
+  React.useEffect(() => {
+    if (jumpLine == null || !open) return;
+    const el = bodyRef.current?.querySelector(`[data-new-line="${jumpLine}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setJumpLine(null);
+  }, [jumpLine, open]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -52,6 +86,14 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
 
+  function handleFindingsBadgeClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setOpen(true);
+    if (findings && findings.length > 0) {
+      setJumpLine(Math.min(...findings.map((f) => f.line)));
+    }
+  }
+
   return (
     <div style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
@@ -64,6 +106,17 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
         </span>
+        {findings && findings.length > 0 && (
+          <button
+            type="button"
+            onClick={handleFindingsBadgeClick}
+            style={s.findingsBadge}
+            aria-label={t("diffViewer.jumpToFindings", { count: findings.length })}
+          >
+            <Icon.AlertTriangle size={12} />
+            {t("diffViewer.findingsBadge", { count: findings.length })}
+          </button>
+        )}
         {commentCount > 0 && (
           <span
             style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-muted)" }}
@@ -74,7 +127,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
         )}
       </div>
       {open && (
-        <div style={s.fileBody}>
+        <div style={s.fileBody} ref={bodyRef}>
           {lines.length === 0 ? (
             <div style={s.noDiff}>{t("diffViewer.noDiffText")}</div>
           ) : (
@@ -85,6 +138,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                findings={ln.newNo != null ? findingsByLine.get(ln.newNo) : undefined}
               />
             ))
           )}

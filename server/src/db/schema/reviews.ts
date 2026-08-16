@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index, check } from 'drizzle-orm/pg-core';
+import type { IntentSource } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -88,14 +89,34 @@ export const findings = pgTable(
   }),
 );
 
-export const prIntent = pgTable('pr_intent', {
-  prId: uuid('pr_id')
-    .primaryKey()
-    .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  intent: text('intent').notNull(),
-  inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-});
+export const prIntent = pgTable(
+  'pr_intent',
+  {
+    prId: uuid('pr_id')
+      .primaryKey()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    intent: text('intent').notNull(),
+    inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    riskAreas: jsonb('risk_areas').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    /** Model-reported 0..1; null on rows classified before this column. */
+    confidence: doublePrecision('confidence'),
+    /** Which inputs fed the classification (refs + status only, never content). */
+    sources: jsonb('sources').$type<IntentSource[]>().notNull().default(sql`'[]'::jsonb`),
+    model: text('model'),
+    /** PR head SHA the classification ran against (staleness check). */
+    headSha: text('head_sha'),
+    classifiedAt: timestamp('classified_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    // Nullable: a CHECK is satisfied when the expression is NULL, so legacy
+    // rows without a confidence stay legal without an explicit OR IS NULL.
+    confidenceCk: check(
+      'pr_intent_confidence_ck',
+      sql`${t.confidence} >= 0 and ${t.confidence} <= 1`,
+    ),
+  }),
+);
 
 export const prBrief = pgTable('pr_brief', {
   prId: uuid('pr_id')

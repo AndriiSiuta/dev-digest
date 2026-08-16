@@ -47,8 +47,10 @@ export interface MockLLMOptions {
   structured?: unknown;
   /**
    * Per-schemaName fixtures for multi-call flows (e.g. the conventions 2-step
-   * dialogue: 'ConventionFileSelection' then 'ConventionExtraction'). Looked up
-   * by req.schemaName; falls back to `structured` when no entry matches.
+   * dialogue: 'ConventionFileSelection' then 'ConventionExtraction') and for
+   * targeting a single feature call by name (e.g. the intent classifier's
+   * 'IntentClassification'). Looked up by req.schemaName; falls back to
+   * `structured` when no entry matches.
    */
   structuredBySchema?: Record<string, unknown>;
   completionText?: string;

@@ -29,6 +29,8 @@ import { RepoRepository } from '../modules/repos/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import type { IntentFacade } from '../modules/intent/types.js';
+import { IntentService } from '../modules/intent/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -50,6 +52,8 @@ export interface ContainerOverrides {
   llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
+  /** intent facade — tests inject mock IntentFacade implementations. */
+  intent?: IntentFacade;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
@@ -77,6 +81,7 @@ export class Container {
   private _reposRepo?: RepoRepository;
   private _pullsRepo?: PullsRepository;
   private _repoIntel?: RepoIntel;
+  private _intent?: IntentFacade;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -129,6 +134,16 @@ export class Container {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
     this._repoIntel ??= new RepoIntelService(this);
     return this._repoIntel;
+  }
+
+  /**
+   * The intent facade. The review run-executor resolves a PR's derived intent
+   * through this interface; tests inject a mock via `ContainerOverrides.intent`.
+   */
+  get intent(): IntentFacade {
+    if (this.overrides.intent) return this.overrides.intent;
+    this._intent ??= new IntentService(this);
+    return this._intent;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

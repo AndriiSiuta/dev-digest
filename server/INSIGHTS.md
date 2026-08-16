@@ -12,6 +12,19 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Doesn't Work
 
+- **2026-08-14** — The intent classifier's one structured log line was dead on
+  the review path, and the reason is invisible from the line itself: it is
+  `logger?.info(...)`, and `IntentService.getOrClassify` — the only entry point
+  the review path uses — called `this.classify(workspaceId, pull.id)` with no
+  logger, so a classification triggered by a review logged NOTHING while one
+  triggered by `POST /pulls/:id/intent` (which passes `req.log`) logged fully.
+  An optional `logger?` that some callers omit is a silent observability hole,
+  not a degraded mode. **Fixed 2026-08-14**: `getOrClassify` now takes
+  `(workspaceId, pull, correlationId?, logger?)` and `run-executor` threads its
+  pino logger + the first queued `runId` through `resolveIntentBlock`. Evidence:
+  `src/modules/intent/service.ts` (`getOrClassify`),
+  `src/modules/reviews/run-executor.ts` (`resolveIntentBlock`).
+
 - **2026-07-29** — A green `pnpm test` does not mean the integration tests ran: `*.it.test.ts` files self-skip when no Docker daemon is reachable, so a machine without Docker reports success having exercised none of the DB paths. Evidence: `server/test/helpers/pg.ts:10`.
 
 - **2026-07-29** — `TESTING.md:43` promises a Windows `typecheck` job as the `@ast-grep/napi` prebuilt gate; the gate no longer exists, so a missing win32 prebuilt now reaches users uncaught. Evidence: commit `b7838c8` *"ci(server): drop the Windows typecheck matrix"*.
@@ -35,6 +48,18 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-08-14** — `PromptAssembly` has NO diff field: `assemblePrompt` embeds
+  the diff inside `user` as `## Diff to review` + `wrapUntrusted('diff', …)`, so
+  every other section (`intent`/`skills`/`specs`/`callers`/`repo_map`/
+  `pr_description`) is a SLICE of `user` too. Any per-slot size or token
+  attribution built from the assembly therefore double-counts unless it treats
+  `system` + `user` as the only top-level rows and takes the diff length from the
+  caller — `platform/prompt-log.ts` marks the inner rows `nested` for exactly
+  that reason. The trace contract's "enables per-slot token attribution" comment
+  reads as if the slots were disjoint; they are not. Evidence:
+  `reviewer-core/src/prompt.ts:143,152-162`,
+  `src/vendor/shared/contracts/trace.ts:48-49`.
+
 - **2026-07-29** — Twelve tables in `src/db/schema/` have zero references outside their own schema file and are meant to stay empty until a course lesson fills them, so an unused table is not dead code. Evidence: `server/README.md:9-14`.
 
   `ci_installations` · `ci_runs` · `code_chunks` · `composed_reviews` ·
@@ -56,6 +81,16 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — `no-cross-module-internals` bans importing another module's `helpers.ts`, and the container only shares *repositories*, so a pure row→DTO mapper that two modules both need has no shared home: it is duplicated on purpose. The agents module maps a skill row itself (`toAgentSkillDetail`) rather than importing the skills module's `toSkillDto`. Only `constants.ts` / `types.ts` are importable across modules. Evidence: `.dependency-cruiser.cjs:29-40`, `src/modules/agents/helpers.ts` (`toAgentSkillDetail`).
 
 - **2026-08-05** — `src/db/rows.ts` is the sanctioned home for a row type two modules both need, and it is load-bearing rather than stylistic: `dependency-cruiser` runs with `tsPreCompilationDeps: false`, so a cross-module `import type { X } from '../other/repository.js'` is erased before the graph is built and the `no-cross-module-internals` rule cannot see it — the convention is the only thing catching that reach. Evidence: `src/db/rows.ts:3-11`.
+  - **2026-08-16** — Same loophole, different shape: a NEW service that only
+    needs a *capability* of another module's repository (not a shared row
+    type) doesn't need `db/rows.ts` either — declare a narrow structural
+    interface in the new module's own `types.ts` (e.g. `{ getPull(...):
+    Promise<unknown | undefined> }`) instead of `import type { PullsRepository
+    } from '../pulls/repository.js'`. `PullsRepository`/`ReviewRepository`
+    satisfy it structurally with no import, so `pnpm arch` sees a clean graph
+    for the right reason (no cross-module type reach exists at all) rather
+    than an invisible one. Evidence: `src/modules/smart-diff/types.ts`
+    (`SmartDiffPullsRepo`, `SmartDiffReviewRepo`), `src/modules/smart-diff/service.ts`.
 
 - **2026-08-05** — `modules/settings/feature-models.ts` is the one cross-module import the arch rules allow into another module's folder — `no-cross-module-internals` bans only `service|repository|routes|helpers|run-executor|diff-loader|findings|status`, so a system LLM feature resolves its model with a direct `import { resolveFeatureModel } from '../settings/feature-models.js'` rather than through the container. Evidence: `.dependency-cruiser.cjs:29-40`, `src/modules/conventions/service.ts:11` (`pnpm arch` clean).
 
@@ -83,6 +118,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `pnpm db:migrate` dumps raw Postgres NOTICE objects (`'extension "vector" already exists, skipping'`, code 42710) that read like errors but are idempotent skips — the run is fine iff it ends with `✓ migrations applied`. Evidence: `src/db/migrate.ts` sets no `onnotice` handler, so the `postgres` client logs every notice to stderr.
 
 ## Recurring Errors & Fixes
+
+- **2026-08-14** — An it-test that triggers a review can silently reach a REAL
+  LLM provider and burn money on any machine whose `~/.devdigest/secrets.json`
+  holds keys: tests build config from `{ ...process.env }` with no `secrets`
+  override, and `ContainerOverrides.llm` stubs only the provider under test, so
+  a container-resolved feature call on the run path (e.g. the intent
+  classifier's `resolveFeatureModel` → `openrouter`) falls through to a real
+  adapter. Symptom: `Cannot read properties of undefined (reading 'findings')`
+  after ~10s (the run outlives the poll window). Fix: every review-triggering
+  it-test overrides the feature's facade (`intent: { getOrClassify: async () =>
+  undefined }`) or stubs every provider id. `test/reviews.it.test.ts:117`.
 
 ## Session Notes
 

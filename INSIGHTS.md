@@ -49,6 +49,23 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Tool & Library Notes
 
+- **2026-08-14** — `pnpm arch` is invoked by `pr-self-review` (phase 2) and named
+  in `onion-architecture`'s Enforcement section, and the 2026-08-05 audit note
+  below says it was wired — but `server/package.json` on `main` has no `arch`
+  script; only the pieces landed (`server/.dependency-cruiser.cjs`,
+  `dependency-cruiser` ^17.4.3 in devDependencies). Until the script exists,
+  run `cd server && pnpm exec depcruise --config .dependency-cruiser.cjs src`;
+  agent prompts must not rely on `pnpm arch`. Evidence:
+  `grep '"arch"' server/package.json` → no match.
+
+- **2026-08-14** — Claude Code subagent frontmatter: `skills:` preloads the
+  full skill content into the subagent at startup, but a `tools:` allowlist
+  drops the `Skill` tool unless it is listed explicitly — so an agent that must
+  invoke skills on demand needs both. `.claude/agents/implementer.md` lists
+  `Skill` for per-step skill invocation; `planner.md` deliberately omits it
+  (read-only, skills preloaded instead). Evidence:
+  code.claude.com/docs/en/sub-agents, frontmatter field table.
+
 - **2026-07-29** — Half this repo is pnpm and half is npm, so running `pnpm install` in `reviewer-core/` or `e2e/` would create a second competing lockfile — match the lockfile already in the directory, not the root README's pnpm prerequisite.
 
   | Package | Lockfile |
