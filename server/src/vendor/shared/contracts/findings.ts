@@ -55,6 +55,13 @@ export const Finding = z.object({
   rationale: z.string(), // markdown
   suggestion: z.string().nullish(), // markdown
   confidence: z.number().min(0).max(1),
+  /**
+   * Whether the finding falls inside the PR's declared scope (derived intent).
+   * Set by the model only when an intent block is in the prompt; absent/true →
+   * in scope. `false` findings are mechanically filtered post-grounding
+   * (severe ones survive as exactly one signal).
+   */
+  in_scope: z.boolean().nullish(),
   kind: FindingKind.nullish(),
   // Lethal-trifecta variant fields (present only when kind === 'lethal_trifecta')
   trifecta_components: z.array(TrifectaComponent).nullish(),

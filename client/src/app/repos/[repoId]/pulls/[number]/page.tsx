@@ -157,6 +157,10 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               refetchReviews();
+              // refetchReviews() above is a direct refetch of ["reviews", prId],
+              // not an invalidation — it does not cascade to the smart-diff
+              // query's overlaid findings, so invalidate that key explicitly.
+              if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId, "smart-diff"] });
             }}
           />
         )}

@@ -70,6 +70,8 @@ flowchart TB
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    intent["intent<br/>GET /pulls/:id/intent · POST /pulls/:id/intent"]
+    smartDiff["smart-diff<br/>GET /pulls/:id/smart-diff"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id"]
@@ -83,6 +85,11 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+`GET /pulls/:id/smart-diff` is deterministic and makes **no model call** — it
+classifies the PR's already-imported files (`pr_files`) into
+core/wiring/boilerplate and overlays the latest review's already-computed
+findings, recomputed fresh on every request.
 
 ## Environment
 

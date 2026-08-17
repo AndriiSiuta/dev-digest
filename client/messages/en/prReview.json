@@ -57,11 +57,21 @@
     "coreLabel": "Core",
     "wiringLabel": "Wiring",
     "boilerplateLabel": "Boilerplate",
+    "coreHint": "Business logic and behavior changes — start here.",
+    "wiringHint": "Config, infra, docs and other wiring — skim for correctness.",
+    "boilerplateHint": "Lock files, build output and other generated noise — usually safe to skip.",
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "groupedByRole": "Smart Diff · grouped by role",
+    "orderSmart": "Smart order",
+    "orderOriginal": "Original order",
+    "summary": "{count} files changed",
+    "noFiles": "No changed files.",
+    "loading": "Loading Smart Diff…",
+    "errorTitle": "Couldn't load Smart Diff",
+    "errorBody": "Switch to Original order, or try reloading the page."
   },
   "list": {
     "breadcrumb": "Pull Requests",

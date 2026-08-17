@@ -1,0 +1,18 @@
+{
+  "card": {
+    "title": "PR intent & scope",
+    "error": "Could not load the PR intent.",
+    "emptyTitle": "No intent yet",
+    "emptyBody": "Classify this PR's intent to give reviews a declared scope and flag scope creep.",
+    "classify": "Classify intent",
+    "reclassify": "Re-classify",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "riskAreas": "Risk areas",
+    "none": "None declared",
+    "lowConfidence": "Low confidence",
+    "missingContext": "Missing context",
+    "missingContextRefs": "Referenced but not included: {refs}",
+    "stale": "Classified against an older commit — re-classify to match the current head."
+  }
+}

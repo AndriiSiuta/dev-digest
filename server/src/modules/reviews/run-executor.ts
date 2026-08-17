@@ -1,7 +1,14 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
+import {
+  reviewPullRequest,
+  countBlockers,
+  severityCounts,
+  renderIntentBlock,
+  SCOPE_DROP_REASONS,
+} from '@devdigest/reviewer-core';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
+import { describeAssembly } from '../../platform/prompt-log.js';
 import type * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
@@ -103,6 +110,18 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Derived intent & scope — shared pre-work like the diff, resolved once for
+    // every queued run. Best-effort by design: any failure yields undefined and
+    // the prompt below is byte-identical to the intent-less baseline.
+    const intent = await runLog.step(
+      'Resolving PR intent',
+      // Correlation id for the classifier's own prompt line. Intent is shared
+      // pre-work across every queued run, so it is attributed to the first one
+      // (identical to `the` run in the usual single-agent case).
+      () => this.resolveIntentBlock(workspaceId, pull, runLog, jobs[0]?.runId, logger),
+      { kind: 'tool' },
+    );
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -110,7 +129,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, intent, agent, runId, runLog);
         logger?.info(
           {
             runId,
@@ -139,6 +158,7 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intent: string | undefined,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
@@ -212,6 +232,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived intent & scope block — untrusted; assemblePrompt wraps it.
+        // Omitted (prompt byte-identical to today) when classification failed.
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -219,9 +242,39 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
+      // Prompt-assembly observability — sizes and provenance only, never
+      // content. This line reaches the SSE Live Log and the persisted trace as
+      // well as stdout, which is exactly why describeAssembly cannot carry text
+      // (see platform/prompt-log.ts). Correlated by runId.
+      runLog.info(
+        'prompt assembled',
+        describeAssembly(outcome.assembly, {
+          correlationId: runId,
+          model: agent.model,
+          provider: agent.provider,
+          verbose: this.container.config.promptLogVerbose,
+          count: (s) => this.container.tokenizer.count(s),
+          diffChars: diff.raw.length,
+        }),
+      );
+
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
+
+      // Surface what the mechanical scope filter did (reasons live in
+      // outcome.dropped alongside grounding's — "never go silent").
+      const scopeDrops = outcome.dropped.filter((d) =>
+        (SCOPE_DROP_REASONS as readonly string[]).includes(d.reason),
+      ).length;
+      const severeKept = keptFindings.filter((f) => f.in_scope === false).length;
+      if (scopeDrops > 0 || severeKept > 0) {
+        runLog.info(
+          `scope filter: ${scopeDrops} dropped as out-of-scope${
+            severeKept > 0 ? `, ${severeKept} kept as severe signal` : ''
+          }`,
+        );
+      }
 
       // ---- Persist review + findings ----------------------------------------
       const review = await this.repo.insertReview({
@@ -325,6 +378,43 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
+    }
+  }
+
+  /**
+   * Resolve the PR's derived intent into the rendered prompt block, classifying
+   * on the fly when no intent exists yet.
+   *
+   * Best-effort by design: a missing provider key, a model error, or a DB
+   * hiccup must not fail the review — a failure logs and yields undefined, and
+   * `reviewPullRequest` omits the section (prompt byte-identical to today).
+   *
+   * `correlationId` is the run this classification belongs to; `logger` is the
+   * stdout logger the classifier emits its own prompt line through (sizes and
+   * refs only — see modules/intent/service.ts).
+   */
+  private async resolveIntentBlock(
+    workspaceId: string,
+    pull: PullRow,
+    runLog: RunLogger,
+    correlationId?: string,
+    logger?: Logger,
+  ): Promise<string | undefined> {
+    try {
+      const record = await this.container.intent.getOrClassify(
+        workspaceId,
+        pull,
+        correlationId,
+        logger,
+      );
+      if (!record) return undefined;
+      runLog.info(
+        `intent: "${record.intent}" (${record.in_scope.length} in-scope, ${record.out_of_scope.length} out-of-scope)`,
+      );
+      return renderIntentBlock(record);
+    } catch (err) {
+      runLog.info(`intent: skipped — ${(err as Error).message}`);
+      return undefined;
     }
   }
 

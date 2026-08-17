@@ -38,6 +38,8 @@ export type ToolCall = z.infer<typeof ToolCall>;
 
 export const PromptAssembly = z.object({
   system: z.string(),
+  /** Derived PR intent & scope block; null when absent. */
+  intent: z.string().nullish(),
   skills: z.string().nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),

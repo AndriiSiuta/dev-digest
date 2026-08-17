@@ -63,6 +63,10 @@ d('skills in the assembled prompt', () => {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) },
+        // No derived intent: keeps the assembled prompt identical to the
+        // pre-intent baseline AND stops the run's auto-classify pre-work from
+        // reaching a real provider on machines with an OPENROUTER_API_KEY.
+        intent: { getOrClassify: async () => undefined },
       },
     });
   }

@@ -34,6 +34,15 @@ export {
 // Map-reduce helpers (reduce partials, slice a file's diff).
 export { reduceReviews, sliceDiff } from './review/reduce.js';
 
+// Intent scope: render the derived-intent block + the mechanical scope filter.
+export {
+  renderIntentBlock,
+  applyScopeFilter,
+  OUT_OF_SCOPE_PREFIX,
+  SCOPE_DROP_REASONS,
+  type ScopeFilterResult,
+} from './review/scope.js';
+
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,

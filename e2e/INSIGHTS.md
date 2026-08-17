@@ -62,7 +62,16 @@ _None yet._
 
 ## Tool & Library Notes
 
-_None yet._
+- **2026-08-16** — In this sandbox, `npm i -g agent-browser && agent-browser
+  install` succeeds (downloads Chrome for Testing fine), but every
+  `agent-browser open` then fails with `No usable sandbox!
+  content/browser/zygote_host/zygote_host_impl_linux.cc` — the container has no
+  unprivileged user namespaces, so Chrome's own sandbox can't start. `npm run
+  e2e:hermetic` boots Postgres/API/web correctly and only fails at the browser
+  step (`0/7 flows passed`, all `Command failed: agent-browser open …`). Not
+  yet resolved here: the CLI's `open`/`agent-browser.json` docs show no
+  `--no-sandbox`/Chrome-args passthrough, so making this container run e2e
+  needs upstream support or a wrapper, not a flow change. `scripts/e2e.sh`.
 
 ## Recurring Errors & Fixes
 

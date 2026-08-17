@@ -42,6 +42,20 @@ _None yet._
 
 ## Codebase Patterns
 
+- **2026-08-16** — A query key can piggyback on an EXISTING invalidation call
+  for free: `useSmartDiff` uses `["reviews", prId, "smart-diff"]` (not its own
+  top-level key) precisely because TanStack Query's `invalidateQueries`
+  defaults to prefix matching, so every already-existing
+  `invalidateQueries({ queryKey: ["reviews", prId] })` call (run done,
+  delete-run, delete-review, finding accept/dismiss) invalidates the smart-diff
+  query too with zero new call sites. The one place that does a bare `refetch()`
+  instead of `invalidateQueries` (`page.tsx`'s `onRunDone` →
+  `refetchReviews()`) does NOT cascade this way — a direct refetch of one key
+  is not a cache invalidation, so that call site needed one explicit
+  `invalidateQueries({ queryKey: ["reviews", prId, "smart-diff"] })` alongside
+  it. `client/src/lib/hooks/smart-diff.ts`,
+  `client/src/app/repos/[repoId]/pulls/[number]/page.tsx` (`onRunDone`).
+
 - **2026-08-04** — Before adding a new hook/endpoint to show "more detail on
   X" in a component, check whether the detail is already fetched elsewhere on
   the same page and can be threaded down as a prop instead. `RunHistory` only

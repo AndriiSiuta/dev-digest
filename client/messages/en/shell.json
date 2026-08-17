@@ -40,6 +40,8 @@
     "reply": "Reply",
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
-    "outdatedTitle": "{count} comment(s) on older revisions"
+    "outdatedTitle": "{count} comment(s) on older revisions",
+    "findingsBadge": "{count, plural, one {# finding} other {# findings}}",
+    "jumpToFindings": "Jump to {count, plural, one {# finding} other {# findings}} on this file"
   }
 }

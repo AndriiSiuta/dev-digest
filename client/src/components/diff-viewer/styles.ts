@@ -64,6 +64,23 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  findingsBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12,
+    color: "var(--crit)",
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+  } satisfies CSSProperties,
+  findingChips: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    paddingRight: 10,
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */
@@ -75,10 +92,21 @@ export function chevronFor(open: boolean): CSSProperties {
   };
 }
 
-/** Row background per line kind (add/del tinted, others transparent). */
-export function lineRowFor(kind: Line["kind"]): CSSProperties {
+/**
+ * Row background per line kind (add/del tinted, others transparent), plus an
+ * optional left accent bar colored by the line's highest-severity finding —
+ * a fast visual flag that doesn't depend on reading the badge text.
+ */
+export function lineRowFor(kind: Line["kind"], accentColor?: string): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
-  return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
+  return {
+    display: "flex",
+    alignItems: "stretch",
+    fontSize: 13,
+    lineHeight: "20px",
+    background,
+    borderLeft: `2px solid ${accentColor ?? "transparent"}`,
+  };
 }
 
 /** Gutter sign colour per line kind. */

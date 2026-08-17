@@ -26,6 +26,10 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Verbose prompt-assembly logging (per-section token counts + content
+  // fingerprints). LOCAL DEBUGGING ONLY — resolution below forces it off when
+  // NODE_ENV=production, so setting it there is inert by construction.
+  PROMPT_LOG_VERBOSE: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -59,6 +63,19 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Whether prompt-assembly logging emits its VERBOSE fields: per-section token
+   * counts and a sha256 fingerprint of each section (see platform/prompt-log.ts).
+   * The non-verbose line — section names, provenance and character counts — is
+   * always emitted; verbose only adds detail that is useful while debugging a
+   * prompt locally (did this section change between two runs?) and is noise, and
+   * extra tokenizer work, on a shared deployment.
+   *
+   * Local-only is enforced HERE, not by convention: `PROMPT_LOG_VERBOSE=true`
+   * with `NODE_ENV=production` resolves to false, so the flag cannot be turned on
+   * in production by editing an env file.
+   */
+  promptLogVerbose: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -77,5 +94,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLogVerbose:
+      parsed.PROMPT_LOG_VERBOSE === 'true' && parsed.NODE_ENV !== 'production',
   };
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { Intent, SmartDiff } from './brief.js';
+import { Intent, IntentSource, SmartDiff } from './brief.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -56,8 +56,23 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/**
+ * Intent persisted for a PR: the core Intent plus classification metadata
+ * (risk areas, confidence, which sources fed the call, staleness anchors).
+ */
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  risk_areas: z.array(z.string()).default([]),
+  /** Model-reported 0..1 (clamped server-side); null when unknown. */
+  confidence: z.number().min(0).max(1).nullable(),
+  sources: z.array(IntentSource).default([]),
+  /** True when any source was unreachable/unsupported at classification time. */
+  missing_context: z.boolean(),
+  model: z.string().nullable(),
+  /** PR head SHA the classification ran against (staleness check). */
+  head_sha: z.string().nullable(),
+  classified_at: z.string().nullable(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
 /** Smart-diff response for a PR (the SmartDiff). */

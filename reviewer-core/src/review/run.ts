@@ -10,6 +10,7 @@ import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { applyScopeFilter } from './scope.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -71,6 +72,12 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Rendered derived-intent block (`renderIntentBlock`). Untrusted; wrapped +
+   * rendered after the task line. Empty/undefined → section omitted AND the
+   * scope filter is a no-op (no finding carries `in_scope: false`).
+   */
+  intent?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -129,6 +136,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
 
   const promptParts = {
     system: input.systemPrompt,
+    intent: input.intent,
     skills: input.skills,
     memory: input.memory,
     specs: input.specs,
@@ -201,13 +209,21 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
-  // Score is derived from the findings that SURVIVED grounding (not the model's
-  // self-reported number, and not the pre-grounding set) so the score, the
-  // findings list, and the deterministic event always agree.
+  // Mechanical scope filter (order: ground → scope → rescore). A no-op unless
+  // the model labelled findings `in_scope: false` — which it only does when an
+  // intent block was in the prompt.
+  const scope = applyScopeFilter(ground.kept);
+  for (const d of scope.dropped) {
+    emit('info', `scope filter dropped "${d.finding.title}": ${d.reason}`);
+  }
+
+  // Score is derived from the findings that SURVIVED grounding + the scope
+  // filter (not the model's self-reported number) so the score, the findings
+  // list, and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: { ...merged, findings: scope.kept, score: scoreFromFindings(scope.kept) },
     grounding,
-    dropped: ground.dropped,
+    dropped: [...ground.dropped, ...scope.dropped],
     mode,
     assembly,
     chunks: chunks.map((c) => ({ label: c.label })),

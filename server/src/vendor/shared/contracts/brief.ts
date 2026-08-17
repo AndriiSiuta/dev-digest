@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Severity } from './findings.js';
 
 /**
  * PR Brief building blocks: Intent, Blast radius, Risks, PR History,
@@ -12,6 +13,35 @@ export const Intent = z.object({
   out_of_scope: z.array(z.string()),
 });
 export type Intent = z.infer<typeof Intent>;
+
+/** Where one input to the intent classification came from. */
+export const IntentSourceKind = z.enum([
+  'pr_title',
+  'pr_description',
+  'linked_issue',
+  'doc_link',
+  'file_list',
+]);
+export type IntentSourceKind = z.infer<typeof IntentSourceKind>;
+
+/**
+ * What happened to that input: `included` reached the prompt; `unreachable`
+ * was referenced but could not be fetched; `unsupported` is a link kind v1
+ * does not follow (arbitrary external URLs); `empty` existed but had no
+ * content. Anything not `included` flags the classification as missing context.
+ */
+export const IntentSourceStatus = z.enum(['included', 'unreachable', 'unsupported', 'empty']);
+export type IntentSourceStatus = z.infer<typeof IntentSourceStatus>;
+
+export const IntentSource = z.object({
+  kind: IntentSourceKind,
+  /** Human-readable reference (issue number, doc path, URL) — never content. */
+  ref: z.string(),
+  status: IntentSourceStatus,
+  /** Characters of this source that reached the prompt (null when none). */
+  chars: z.number().int().nullish(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
 
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
@@ -81,12 +111,22 @@ export type PrHistory = z.infer<typeof PrHistory>;
 export const SmartDiffRole = z.enum(['core', 'wiring', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;
 
+export const SmartDiffFinding = z.object({
+  id: z.string(),
+  line: z.number().int(), // new-side start line — the scroll anchor
+  end_line: z.number().int(),
+  severity: Severity,
+  title: z.string(),
+});
+export type SmartDiffFinding = z.infer<typeof SmartDiffFinding>;
+
 export const SmartDiffFile = z.object({
   path: z.string(),
-  pseudocode_summary: z.string().nullish(),
+  pseudocode_summary: z.string().nullish(), // stays null — out of scope
   additions: z.number().int(),
   deletions: z.number().int(),
-  finding_lines: z.array(z.number().int()),
+  finding_lines: z.array(z.number().int()), // sorted, de-duped — kept for CI/brief consumers
+  findings: z.array(SmartDiffFinding),
 });
 export type SmartDiffFile = z.infer<typeof SmartDiffFile>;
 

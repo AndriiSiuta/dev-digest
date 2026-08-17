@@ -120,6 +120,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
         },
+        // No derived intent: keeps the assembled prompt identical to the
+        // pre-intent baseline AND stops the run's auto-classify pre-work from
+        // reaching a real provider on machines with an OPENROUTER_API_KEY.
+        intent: { getOrClassify: async () => undefined },
       },
     });
   }
