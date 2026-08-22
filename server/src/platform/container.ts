@@ -27,6 +27,9 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import type { ReviewRunner } from '../modules/reviews/types.js';
+import { ReviewService } from '../modules/reviews/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import type { IntentFacade } from '../modules/intent/types.js';
@@ -54,6 +57,8 @@ export interface ContainerOverrides {
   repoIntel?: RepoIntel;
   /** intent facade — tests inject mock IntentFacade implementations. */
   intent?: IntentFacade;
+  /** reviews facade — tests inject mock ReviewRunner implementations. */
+  reviewRunner?: ReviewRunner;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
@@ -80,8 +85,10 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _reposRepo?: RepoRepository;
   private _pullsRepo?: PullsRepository;
+  private _conventionsRepo?: ConventionsRepository;
   private _repoIntel?: RepoIntel;
   private _intent?: IntentFacade;
+  private _reviewRunner?: ReviewRunner;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -119,6 +126,11 @@ export class Container {
     return (this._pullsRepo ??= new PullsRepository(this.db));
   }
 
+  /** `conventions` table. Shared: conventions owns it, MCP reads it. */
+  get conventionsRepo(): ConventionsRepository {
+    return (this._conventionsRepo ??= new ConventionsRepository(this.db));
+  }
+
   get codeIndex(): CodeIndex {
     if (this.overrides.codeIndex) return this.overrides.codeIndex;
     this._codeIndex ??= new RipgrepCodeIndex(this.git);
@@ -144,6 +156,17 @@ export class Container {
     if (this.overrides.intent) return this.overrides.intent;
     this._intent ??= new IntentService(this);
     return this._intent;
+  }
+
+  /**
+   * The reviews facade. Callers outside the reviews module start, watch, cancel
+   * and read review runs through this interface; tests inject a mock via
+   * `ContainerOverrides.reviewRunner`.
+   */
+  get reviewRunner(): ReviewRunner {
+    if (this.overrides.reviewRunner) return this.overrides.reviewRunner;
+    this._reviewRunner ??= new ReviewService(this);
+    return this._reviewRunner;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

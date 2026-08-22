@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { PrDetail, PrMeta } from '@devdigest/shared';
@@ -51,6 +51,29 @@ export class PullsRepository {
     return row;
   }
 
+  /**
+   * A PR by its human-facing (repo, number) pair — the shape an external caller
+   * has (`owner/repo#412`). Rides the existing `pr_repo_number_uq` unique index
+   * on `(repo_id, number)`; `workspaceId` is the tenancy guard, not a lookup key.
+   */
+  async findByRepoAndNumber(
+    workspaceId: string,
+    repoId: string,
+    number: number,
+  ): Promise<PullRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.pullRequests)
+      .where(
+        and(
+          eq(t.pullRequests.workspaceId, workspaceId),
+          eq(t.pullRequests.repoId, repoId),
+          eq(t.pullRequests.number, number),
+        ),
+      );
+    return row;
+  }
+
   /** Every persisted PR for a repo. */
   listByRepo(repoId: string): Promise<PullRow[]> {
     return this.db.select().from(t.pullRequests).where(eq(t.pullRequests.repoId, repoId));
@@ -62,6 +85,38 @@ export class PullsRepository {
 
   getCommits(prId: string): Promise<PrCommitRow[]> {
     return this.db.select().from(t.prCommits).where(eq(t.prCommits.prId, prId));
+  }
+
+  /**
+   * Other PRs in the same repo whose `pr_files` share ≥ 1 path with `paths` —
+   * the "Prior PRs touching these files" read. Newest first by `updatedAt`
+   * (`nulls last`: a plain DESC would float never-synced rows to the top),
+   * capped at `limit`. No tenancy arg: `repoId` comes off a PR row that was
+   * itself workspace-scoped.
+   */
+  async listOverlapping(
+    repoId: string,
+    excludePrId: string,
+    paths: string[],
+    limit: number,
+  ): Promise<Array<{ pull: PullRow; overlap: string[] }>> {
+    if (paths.length === 0) return []; // inArray([]) is invalid SQL
+    const pr = getTableColumns(t.pullRequests);
+    const rows = await this.db
+      .select({ pull: pr, overlap: sql<string[]>`array_agg(distinct ${t.prFiles.path})` })
+      .from(t.pullRequests)
+      .innerJoin(t.prFiles, eq(t.prFiles.prId, t.pullRequests.id))
+      .where(
+        and(
+          eq(t.pullRequests.repoId, repoId),
+          ne(t.pullRequests.id, excludePrId),
+          inArray(t.prFiles.path, paths),
+        ),
+      )
+      .groupBy(t.pullRequests.id)
+      .orderBy(sql`${t.pullRequests.updatedAt} desc nulls last`)
+      .limit(limit);
+    return rows;
   }
 
   // ---- writes -------------------------------------------------------------

@@ -207,9 +207,11 @@ export function parseSymbols(file: string, source: string): ParsedSymbol[] {
 function unwrapExport(top: SgNode): { node: SgNode; exported: boolean } {
   if (top.kind() !== 'export_statement') return { node: top, exported: false };
   // Find the first non-keyword child (skip `export`, `default`, `*`, `from`, `;`).
+  // `decorator` sits before `export` inside the statement (`@Injectable()\nexport class …`),
+  // so skip it too or the decl behind it is never seen.
   for (const c of top.children()) {
     const k = c.kind();
-    if (k === 'export' || k === 'default' || k === '*' || k === 'from' || k === ';' || k === 'string' || k === 'export_clause') continue;
+    if (k === 'export' || k === 'default' || k === '*' || k === 'from' || k === ';' || k === 'string' || k === 'export_clause' || k === 'decorator') continue;
     return { node: c, exported: true };
   }
   return { node: top, exported: true };
