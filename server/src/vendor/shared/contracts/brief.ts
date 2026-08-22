@@ -107,6 +107,16 @@ export const PrHistory = z.object({
 });
 export type PrHistory = z.infer<typeof PrHistory>;
 
+/** Route-level composition for `GET /pulls/:id/blast`. */
+export const BlastPanel = z.object({
+  blast: BlastRadius,
+  history: PrHistory,
+  /** true on the ripgrep fallback — no crons, no caller ranks. */
+  degraded: z.boolean(),
+  head_sha: z.string(),
+});
+export type BlastPanel = z.infer<typeof BlastPanel>;
+
 // ---- Smart Diff ----
 export const SmartDiffRole = z.enum(['core', 'wiring', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;

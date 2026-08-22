@@ -107,6 +107,23 @@ export default class Defaulted {}
     expect(hidden?.exported).toBe(true);
   });
 
+  it('finds decorator-prefixed exported classes (Angular @Injectable/@Component)', () => {
+    const src = `
+@Injectable()
+export class LocalStorageService {
+  saveItem(val: unknown) {}
+}
+
+@Component({ selector: 'app-card' })
+export default class CardComponent {}
+`;
+    const syms = parseSymbols('src/x.ts', src);
+    const svc = syms.find((s) => s.name === 'LocalStorageService');
+    expect(svc).toMatchObject({ kind: 'class', exported: true });
+    expect(syms.find((s) => s.name === 'LocalStorageService.saveItem')?.kind).toBe('method');
+    expect(syms.find((s) => s.name === 'CardComponent')?.exported).toBe(true);
+  });
+
   it('trims signatures to MAX_SIGNATURE_CHARS', () => {
     const longTypeParams = 'A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X';
     const longArgs = 'a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number';

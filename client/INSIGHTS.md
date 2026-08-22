@@ -69,6 +69,13 @@ _None yet._
 
 ## Tool & Library Notes
 
+- **2026-08-20** — `@testing-library/user-event` is NOT a dependency of this
+  package, so RTL guidance prescribing `userEvent.setup()` fails at import
+  time with vite's `Failed to resolve import "@testing-library/user-event"`.
+  Component tests here use `fireEvent` from `@testing-library/react` — the
+  established harness — and must not add the package just for one test.
+  `src/app/repos/[repoId]/pulls/[number]/_components/SmartDiffViewer/SmartDiffViewer.test.tsx`
+
 - **2026-08-04** — This dev environment's seeded Postgres has zero
   `agent_runs` rows with `findings_count > 0` across all 3 seeded repos
   (`acme/payments-api`, `myasoid/dev-digest`, `quarkusio/quarkus`) — every
@@ -83,6 +90,16 @@ _None yet._
   playwright install chromium` (no `--with-deps`, which needs sudo) downloads
   a working headless Chromium fine, so a scratch `npm install playwright` +
   a small driver script is the fallback for one-off browser verification here.
+  - **2026-08-20** — No download needed when `~/.cache/ms-playwright` already
+    holds a chromium from another project: a freshly installed `playwright`
+    demands its own pinned revision (`Executable doesn't exist at
+    …chromium_headless_shell-1234…`), but `chromium.launch({ executablePath:
+    "~/.cache/ms-playwright/chromium_headless_shell-<rev>/chrome-headless-shell-linux64/chrome-headless-shell" })`
+    runs fine against the older cached revision. Also: a Playwright
+    `hasText: 'Blast Radius'` section locator matches the PR DESCRIPTION card
+    too when the PR body mentions the feature (matching is case-insensitive
+    substring) — filter on the uppercase rendered title (`'BLAST RADIUS'`)
+    and take `.first()`, not `.last()`.
 
 ## Recurring Errors & Fixes
 

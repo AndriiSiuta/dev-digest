@@ -72,6 +72,7 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent<br/>GET /pulls/:id/intent · POST /pulls/:id/intent"]
     smartDiff["smart-diff<br/>GET /pulls/:id/smart-diff"]
+    blast["blast<br/>GET /pulls/:id/blast"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id"]
@@ -82,14 +83,27 @@ flowchart TB
   subgraph Platform["Platform"]
     settings["settings<br/>/settings · /providers"]
     workspace["workspace<br/>/workspace"]
+    mcp["mcp<br/>POST /mcp — Model Context Protocol, 5 tools<br/>(loopback only; GET/DELETE → 405)"]
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+`POST /mcp` is a Streamable-HTTP MCP endpoint, not a REST route: the body is a
+JSON-RPC envelope owned by the MCP SDK, it declares no `schema.response` (the
+handler writes to `reply.raw`), and it is restricted to loopback peers. Its five
+tools are projections over the existing service layer — no new contract. See
+[`src/modules/mcp/README.md`](src/modules/mcp/README.md) for the tool shapes, the
+blocking-run contract, and the required smoke test.
 
 `GET /pulls/:id/smart-diff` is deterministic and makes **no model call** — it
 classifies the PR's already-imported files (`pr_files`) into
 core/wiring/boilerplate and overlays the latest review's already-computed
 findings, recomputed fresh on every request.
+
+`GET /pulls/:id/blast` is also deterministic and model-free: it maps the
+repo-intel blast radius (changed symbols → callers → endpoint/cron facts) into
+the shared `BlastPanel` contract and adds a prior-PR overlap history
+(`pr_files` path self-join, capped at 5, newest first). Nothing is persisted.
 
 ## Environment
 

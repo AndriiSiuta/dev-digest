@@ -6,6 +6,7 @@ export * from "./agents";
 export * from "./skills";
 export * from "./conventions";
 export * from "./intent";
+export * from "./blast";
 export * from "./reviews";
 export * from "./smart-diff";
 export * from "./trace";

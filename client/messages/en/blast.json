@@ -1,18 +1,30 @@
 {
   "stat": {
-    "symbols": "symbols",
-    "callers": "callers",
-    "endpoints": "endpoints",
-    "crons": "cron/jobs"
+    "symbols": "{count, plural, one {symbol} other {symbols}}",
+    "callers": "{count, plural, one {caller} other {callers}}",
+    "endpoints": "{count, plural, one {endpoint} other {endpoints}}",
+    "crons": "{count, plural, one {cron} other {crons}}"
   },
   "view": {
     "tree": "tree",
     "graph": "graph"
   },
-  "callerCount": "{count} callers",
-  "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "callerCount": "{count, plural, one {# caller} other {# callers}}",
   "graph": {
     "empty": "No downstream callers to graph.",
     "ariaLabel": "Blast radius graph"
+  },
+  "card": {
+    "title": "Blast Radius",
+    "error": "Could not load the blast radius.",
+    "emptyTitle": "No changed symbols",
+    "emptyBody": "No symbol changes were detected in this PR's files — nothing downstream to trace.",
+    "degraded": "partial index — endpoints/crons incomplete"
+  },
+  "history": {
+    "title": "Prior PRs touching these files",
+    "overlapCount": "{count, plural, one {# shared file} other {# shared files}}",
+    "noDate": "no date",
+    "empty": "No prior PRs touch these files."
   }
 }
