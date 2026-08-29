@@ -79,6 +79,10 @@ export const EvalCase = z.object({
   input_diff: z.string(),
   input_files: z.unknown(),
   input_meta: z.unknown(),
+  /**
+   * Carries an `EvalExpectation` (`eval-ci.ts`); the schema field stays
+   * `z.unknown()` deliberately — writers write that shape, readers parse it.
+   */
   expected_output: z.unknown(),
   notes: z.string().nullish(),
 });

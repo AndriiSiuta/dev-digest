@@ -43,6 +43,15 @@ export type {
   PrBriefRecord,
 } from "@devdigest/shared";
 export type { SmartDiffFinding, SmartDiffFile, SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
+export type {
+  EvalCase,
+  EvalOwnerKind,
+  EvalExpectation,
+  EvalRunRecord,
+  EvalBatchSummary,
+  EvalBatchDetail,
+  EvalDashboardView,
+} from "@devdigest/shared";
 
 /** UI-only view model for a PR list row (derives display fields from PrMeta). */
 export interface PrRowView {

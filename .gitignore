@@ -1,4 +1,9 @@
 node_modules/
+# ROOT lockfile only (server/ and client/ lockfiles are committed): pnpm 11's
+# `verify-deps-before-run` (default "install") auto-writes an EMPTY lockfile at
+# the scripts-only root the moment `pnpm verify:l06` runs, and the per-project
+# opt-out would require a pnpm-workspace.yaml this repo must never have.
+/pnpm-lock.yaml
 dist/
 # agent-runner ships as a JS GitHub Action — its bundled dist/ MUST be committed
 # (GitHub runs action.yml `main: dist/index.js` as-is, with no build step).

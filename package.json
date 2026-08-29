@@ -1,0 +1,7 @@
+{
+  "name": "devdigest-root",
+  "private": true,
+  "scripts": {
+    "verify:l06": "pnpm -C server typecheck && pnpm -C server exec vitest run --exclude '**/*.it.test.ts' && pnpm -C client typecheck && pnpm -C client test"
+  }
+}

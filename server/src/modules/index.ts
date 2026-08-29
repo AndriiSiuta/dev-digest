@@ -13,6 +13,8 @@ import intent from './intent/routes.js';
 import smartDiff from './smart-diff/routes.js';
 import blast from './blast/routes.js';
 import brief from './brief/routes.js';
+// `eval` is a reserved identifier in strict mode — the import must be renamed.
+import evalRoutes from './eval/routes.js';
 import repoIntel from './repo-intel/routes.js';
 import mcp from './mcp/routes.js';
 
@@ -44,6 +46,7 @@ export const modules: Record<string, FastifyPluginAsync> = {
   smartDiff,
   blast,
   brief,
+  eval: evalRoutes,
   repoIntel,
   mcp,
 };

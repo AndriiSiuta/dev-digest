@@ -22,6 +22,10 @@ import {
   SkillVersion,
   PrBrief,
   PrBriefRecord,
+  EvalExpectation,
+  EvalRunRecord,
+  EvalBatchDetail,
+  EvalDashboard,
 } from '@devdigest/shared';
 
 /**
@@ -387,5 +391,106 @@ describe('PR Brief contracts', () => {
       history: { history: [] },
     });
     expect(brief.risks.risks).toEqual([]);
+  });
+});
+
+describe('Eval pipeline contracts', () => {
+  const runRecord = {
+    id: 'r1',
+    case_id: 'c1',
+    case_name: 'Hardcoded Stripe secret key in commit',
+    batch_id: 'b1',
+    agent_version: 3,
+    ran_at: '2026-08-29T00:00:00.000Z',
+    actual_output: { model: 'gpt-4.1', proposed: 2, surviving: 1 },
+    pass: true,
+    recall: null,
+    precision: null,
+    citation_accuracy: 0.5,
+    duration_ms: 1200,
+    cost_usd: 0.002,
+    error: null,
+  };
+
+  it('a fully-populated EvalBatchDetail parses', () => {
+    const detail = EvalBatchDetail.parse({
+      batch_id: 'b1',
+      agent_id: 'a1',
+      agent_version: 3,
+      model: 'gpt-4.1',
+      ran_at: '2026-08-29T00:00:00.000Z',
+      cases_total: 2,
+      cases_errored: 1,
+      cases_passed: 1,
+      recall: 1,
+      precision: 0.5,
+      citation_accuracy: 0.545,
+      duration_ms: 2400,
+      cost_usd: null,
+      results: [
+        runRecord,
+        {
+          ...runRecord,
+          id: 'r2',
+          case_id: 'c2',
+          pass: null,
+          citation_accuracy: null,
+          duration_ms: null,
+          cost_usd: null,
+          error: 'provider timed out',
+        },
+      ],
+    });
+    expect(detail.results).toHaveLength(2);
+    expect(detail.results[1]!.error).toBe('provider timed out');
+  });
+
+  it('an EvalExpectation with an unknown kind fails', () => {
+    expect(() =>
+      EvalExpectation.parse({ kind: 'maybe_find', file: 'src/a.ts', start_line: 1, end_line: 2 }),
+    ).toThrow();
+    expect(() =>
+      EvalExpectation.parse({ kind: 'must_not_flag', file: 'src/a.ts', start_line: 1, end_line: 2 }),
+    ).not.toThrow();
+  });
+
+  it('an EvalRunRecord without batch_id fails', () => {
+    const { batch_id: _dropped, ...withoutBatch } = runRecord;
+    expect(() => EvalRunRecord.parse(withoutBatch)).toThrow();
+  });
+
+  it('the pre-staged EvalRun / EvalDashboard still parse their original shapes', () => {
+    // The left-alone guarantee: the unused L06 contracts are untouched.
+    expect(() =>
+      EvalRun.parse({
+        recall: 0.82,
+        precision: 0.91,
+        citation_accuracy: 0.95,
+        traces_passed: 17,
+        traces_total: 20,
+        duration_ms: 12000,
+        cost_usd: 0.23,
+        per_trace: [],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      EvalDashboard.parse({
+        owner_kind: 'agent',
+        owner_id: 'a1',
+        cases_total: 8,
+        current: {
+          recall: 0.8,
+          precision: 0.9,
+          citation_accuracy: 0.95,
+          traces_passed: 7,
+          traces_total: 8,
+          cost_usd: null,
+        },
+        delta: { recall: 0, precision: 0, citation_accuracy: 0 },
+        trend: [],
+        recent_runs: [runRecord],
+        alert: null,
+      }),
+    ).not.toThrow();
   });
 });

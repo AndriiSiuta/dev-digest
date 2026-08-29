@@ -29,11 +29,32 @@ export const EvalCaseInput = z.object({
 });
 export type EvalCaseInput = z.infer<typeof EvalCaseInput>;
 
+/**
+ * EvalExpectation — the shape carried by `eval_cases.expected_output`.
+ *
+ * A case freezes exactly one expectation about one region of the diff:
+ * `must_find` (an accepted finding the agent must reproduce) or
+ * `must_not_flag` (a dismissed finding the agent must stay silent about).
+ * The `EvalCase.expected_output` field itself stays `z.unknown()` on the wire;
+ * this schema is what writers write into it and readers parse out of it.
+ */
+export const EvalExpectation = z.object({
+  kind: z.enum(['must_find', 'must_not_flag']),
+  file: z.string().min(1),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+});
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
 /** A persisted eval run row (one execution of a case), returned by the API. */
 export const EvalRunRecord = z.object({
   id: z.string(),
   case_id: z.string(),
   case_name: z.string().nullish(),
+  /** Groups the case-result rows written by one batch trigger. */
+  batch_id: z.string(),
+  /** `agents.version` at trigger time — labels history/comparison ("v3 vs v5"). */
+  agent_version: z.number().int().nullable(),
   ran_at: z.string(),
   actual_output: z.unknown(),
   pass: z.boolean().nullable(),
@@ -42,6 +63,8 @@ export const EvalRunRecord = z.object({
   citation_accuracy: z.number().nullable(),
   duration_ms: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
+  /** Null when the case executed; the failure message when it errored. */
+  error: z.string().nullable(),
 });
 export type EvalRunRecord = z.infer<typeof EvalRunRecord>;
 
@@ -87,6 +110,44 @@ export const EvalDashboard = z.object({
   alert: z.string().nullable(),
 });
 export type EvalDashboard = z.infer<typeof EvalDashboard>;
+
+/**
+ * EvalBatchSummary — one batch of case results (all rows sharing a `batch_id`),
+ * with its metrics computed from raw counts across the batch's rows.
+ */
+export const EvalBatchSummary = z.object({
+  batch_id: z.string(),
+  agent_id: z.string(),
+  agent_version: z.number().int().nullable(),
+  model: z.string(),
+  ran_at: z.string(),
+  cases_total: z.number().int(),
+  cases_errored: z.number().int(),
+  cases_passed: z.number().int(),
+  recall: z.number(),
+  precision: z.number(),
+  citation_accuracy: z.number(),
+  duration_ms: z.number().int(),
+  cost_usd: z.number().nullable(),
+});
+export type EvalBatchSummary = z.infer<typeof EvalBatchSummary>;
+
+/** A batch with its per-case result rows (the comparison view's unit). */
+export const EvalBatchDetail = EvalBatchSummary.extend({
+  results: z.array(EvalRunRecord),
+});
+export type EvalBatchDetail = z.infer<typeof EvalBatchDetail>;
+
+/**
+ * The Eval Dashboard aggregate: workspace-wide case count plus the most recent
+ * batches across all agents — newest first, capped at
+ * `EVAL_DASHBOARD_RECENT_CAP`.
+ */
+export const EvalDashboardView = z.object({
+  cases_total: z.number().int(),
+  recent: z.array(EvalBatchSummary.extend({ agent_name: z.string() })),
+});
+export type EvalDashboardView = z.infer<typeof EvalDashboardView>;
 
 // ===========================================================================
 // Compose Review

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -10,6 +10,7 @@ import {
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { SEED_SKILLS } from './seed-skills.js';
+import { EVAL_SEED_CASE_COUNT } from '../modules/eval/constants.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -250,6 +251,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   }
 
   await seedSkills(db, workspaceId);
+  await seedEvalCases(db, workspaceId);
 
   return { workspaceId, userId };
 }
@@ -311,6 +313,192 @@ async function seedSkills(db: Db, workspaceId: string): Promise<void> {
         .values({ agentId: agent.id, skillId, order, enabled: true })
         .onConflictDoNothing();
     }
+  }
+}
+
+/** One hand-authored eval case for the Security Reviewer (AC-39). */
+interface SeedEvalCase {
+  /** Idempotency marker, stored as `input_meta.source_finding_id`. */
+  slug: string;
+  name: string;
+  kind: 'must_find' | 'must_not_flag';
+  file: string;
+  startLine: number;
+  endLine: number;
+  /** A VALID unified-diff fragment (`@@` hunks) — the grounding gate builds its
+   *  line index from parsed hunks, so an unparseable fragment scores everything
+   *  ungrounded. The expectation range points at real new-side lines. */
+  patch: string;
+  prTitle: string;
+  prBody: string;
+  prNumber: number;
+}
+
+/**
+ * Hand-authored because seeded data has zero findings, so the finding-born
+ * path cannot produce them. 5 `must_find` (classic security misses) +
+ * 3 `must_not_flag` (dismissed-noise shapes). Every "secret" below is an
+ * obviously fake fixture value, same convention as the PR #482 sample data.
+ */
+const SEED_EVAL_CASES: SeedEvalCase[] = [
+  {
+    slug: 'seed:leaked-key',
+    name: 'Hardcoded payment key committed in config',
+    kind: 'must_find',
+    file: 'src/config.ts',
+    startLine: 11,
+    endLine: 11,
+    patch:
+      '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_SEEDFIXTURE000",\n   redisUrl: process.env.REDIS_URL,',
+    prTitle: 'Wire up payments config',
+    prBody: 'Adds the payment provider settings to the config module.',
+    prNumber: 511,
+  },
+  {
+    slug: 'seed:sql-injection',
+    name: 'SQL built by string concatenation from user input',
+    kind: 'must_find',
+    file: 'src/db/users.ts',
+    startLine: 41,
+    endLine: 42,
+    patch:
+      '@@ -40,2 +40,4 @@\n export async function findUser(db, name) {\n+  const query = "SELECT * FROM users WHERE name = \'" + name + "\'";\n+  return db.raw(query);\n }',
+    prTitle: 'Add user lookup by name',
+    prBody: 'Supports the new admin search box.',
+    prNumber: 512,
+  },
+  {
+    slug: 'seed:ssrf',
+    name: 'Proxy fetches an attacker-controlled URL (SSRF)',
+    kind: 'must_find',
+    file: 'src/api/fetch-proxy.ts',
+    startLine: 13,
+    endLine: 14,
+    patch:
+      '@@ -12,2 +12,5 @@\n export async function proxy(req, res) {\n+  const target = req.query.url;\n+  const resp = await fetch(target);\n+  res.send(await resp.text());\n }',
+    prTitle: 'Add image proxy endpoint',
+    prBody: 'Lets the client fetch remote previews through the API.',
+    prNumber: 513,
+  },
+  {
+    slug: 'seed:missing-auth',
+    name: 'Admin listing endpoint has no auth check',
+    kind: 'must_find',
+    file: 'src/api/admin.ts',
+    startLine: 9,
+    endLine: 11,
+    patch:
+      "@@ -8,2 +8,5 @@\n router.get('/admin/users', async (req, res) => {\n+  // TODO: auth\n+  const users = await db.listAllUsers();\n+  res.json(users);\n });",
+    prTitle: 'Add admin user listing',
+    prBody: 'First cut of the admin console backend.',
+    prNumber: 514,
+  },
+  {
+    slug: 'seed:weak-hash',
+    name: 'Passwords hashed with MD5',
+    kind: 'must_find',
+    file: 'src/auth/password.ts',
+    startLine: 4,
+    endLine: 5,
+    patch:
+      "@@ -3,2 +3,4 @@\n import crypto from 'node:crypto';\n+export const hashPassword = (pw) =>\n+  crypto.createHash('md5').update(pw).digest('hex');\n export const compare = (a, b) => a === b;",
+    prTitle: 'Add password hashing helper',
+    prBody: 'Replaces the plain-text comparison with a hash.',
+    prNumber: 515,
+  },
+  {
+    slug: 'seed:benign-refactor',
+    name: 'Date formatting tweak flagged as a risk',
+    kind: 'must_not_flag',
+    file: 'src/lib/format.ts',
+    startLine: 21,
+    endLine: 21,
+    patch:
+      '@@ -20,3 +20,3 @@\n export function formatDate(d) {\n-  return d.toISOString();\n+  return d.toISOString().slice(0, 10);\n }',
+    prTitle: 'Shorten displayed dates',
+    prBody: 'Date-only display in the activity list.',
+    prNumber: 516,
+  },
+  {
+    slug: 'seed:test-fixture-token',
+    name: 'Fake token in a test fixture flagged as a leak',
+    kind: 'must_not_flag',
+    file: 'test/fixtures.ts',
+    startLine: 6,
+    endLine: 6,
+    patch:
+      "@@ -5,2 +5,3 @@\n export const FIXTURES = {\n+  fakeToken: 'test-token-not-a-secret',\n };",
+    prTitle: 'Add auth test fixtures',
+    prBody: 'Deterministic fixtures for the auth suite.',
+    prNumber: 517,
+  },
+  {
+    slug: 'seed:startup-log',
+    name: 'Startup log line flagged as information disclosure',
+    kind: 'must_not_flag',
+    file: 'src/server.ts',
+    startLine: 31,
+    endLine: 31,
+    patch:
+      '@@ -30,2 +30,3 @@\n app.listen(PORT, () => {\n+  console.log(`listening on ${PORT}`);\n });',
+    prTitle: 'Log the bound port on boot',
+    prBody: 'Small DX improvement for local runs.',
+    prNumber: 518,
+  },
+];
+
+/**
+ * Seed EVAL_SEED_CASE_COUNT eval cases for the Security Reviewer (AC-39).
+ *
+ * Idempotent via the `seed:<slug>` marker in `input_meta.source_finding_id`
+ * (the same field the finding-born path uses for its duplicate check): a
+ * re-run skips every case whose marker already exists, the same name-check
+ * pattern `seedAgents` uses.
+ */
+async function seedEvalCases(db: Db, workspaceId: string): Promise<void> {
+  if (SEED_EVAL_CASES.length !== EVAL_SEED_CASE_COUNT) {
+    throw new Error(
+      `SEED_EVAL_CASES has ${SEED_EVAL_CASES.length} entries, expected ${EVAL_SEED_CASE_COUNT}`,
+    );
+  }
+  const [agent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (!agent) return;
+
+  for (const c of SEED_EVAL_CASES) {
+    const [existing] = await db
+      .select({ id: t.evalCases.id })
+      .from(t.evalCases)
+      .where(
+        and(
+          eq(t.evalCases.workspaceId, workspaceId),
+          sql`${t.evalCases.inputMeta}->>'source_finding_id' = ${c.slug}`,
+        ),
+      );
+    if (existing) continue;
+    await db.insert(t.evalCases).values({
+      workspaceId,
+      ownerKind: 'agent',
+      ownerId: agent.id,
+      name: c.name,
+      inputDiff: c.patch,
+      inputFiles: [c.file],
+      inputMeta: {
+        pr_title: c.prTitle,
+        pr_body: c.prBody,
+        repo: 'acme/payments-api',
+        pr_number: c.prNumber,
+        source_finding_id: c.slug,
+      },
+      expectedOutput: {
+        kind: c.kind,
+        file: c.file,
+        start_line: c.startLine,
+        end_line: c.endLine,
+      },
+    });
   }
 }
 

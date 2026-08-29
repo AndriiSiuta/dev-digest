@@ -41,6 +41,9 @@ import { SmartDiffService } from '../modules/smart-diff/service.js';
 import type { BriefFacade } from '../modules/brief/types.js';
 import { BriefService } from '../modules/brief/service.js';
 import { BriefRepository } from '../modules/brief/repository.js';
+import type { EvalFacade } from '../modules/eval/types.js';
+import { EvalService } from '../modules/eval/service.js';
+import { EvalRepository } from '../modules/eval/repository.js';
 import type {
   ProjectContextDocs,
   ProjectContextFacade,
@@ -84,6 +87,15 @@ export interface ContainerOverrides {
    * thing that needs it.
    */
   briefRepo?: BriefRepository;
+  /** eval facade — tests inject mock EvalFacade implementations. */
+  eval?: EvalFacade;
+  /**
+   * `eval_cases` + `eval_runs` persistence — tests inject a recording/throwing
+   * double (AC-NF-11's "insert throws after k rows" needs this seam; an
+   * unwired one would make an inertness assertion pass vacuously —
+   * `server/INSIGHTS.md`, 2026-08-28).
+   */
+  evalRepo?: EvalRepository;
   /** project-context document discovery/read — tests inject MockProjectContextDocs. */
   projectContextDocs?: ProjectContextDocs;
   /** project-context facade — the reviews run-executor resolves through this. */
@@ -124,6 +136,8 @@ export class Container {
   private _smartDiff?: SmartDiffFacade;
   private _brief?: BriefFacade;
   private _briefRepo?: BriefRepository;
+  private _eval?: EvalFacade;
+  private _evalRepo?: EvalRepository;
   private _projectContextDocs?: ProjectContextDocs;
   private _projectContext?: ProjectContextFacade;
   private _reviewRunner?: ReviewRunner;
@@ -247,6 +261,28 @@ export class Container {
     if (this.overrides.brief) return this.overrides.brief;
     this._brief ??= new BriefService(this);
     return this._brief;
+  }
+
+  /**
+   * `eval_cases` + `eval_runs`. The eval module owns the tables; the
+   * repository is constructed here (the `briefRepo` precedent) so the test
+   * harness has a seam for a recording/throwing double.
+   */
+  get evalRepo(): EvalRepository {
+    if (this.overrides.evalRepo) return this.overrides.evalRepo;
+    return (this._evalRepo ??= new EvalRepository(this.db));
+  }
+
+  /**
+   * The eval facade. Routes and tests reach the eval pipeline through this
+   * interface; tests inject a mock via `ContainerOverrides.eval`. The getter
+   * memoizes ONE instance per app — the service's per-agent in-flight lock
+   * (AC-29) depends on that.
+   */
+  get eval(): EvalFacade {
+    if (this.overrides.eval) return this.overrides.eval;
+    this._eval ??= new EvalService(this);
+    return this._eval;
   }
 
   /**
