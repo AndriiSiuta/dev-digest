@@ -12,6 +12,16 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Doesn't Work
 
+- **2026-08-29** — A ONE-SHOT throwing double cannot pin "a failed persist
+  aborts the batch leaving exactly k rows" under bounded concurrency: with
+  `mapWithConcurrency(cases, 3, …)` writing as-you-go, a double that throws
+  only on insert call #3 lets an in-flight sibling land insert #4 before
+  `Promise.all` observes the rejection, so the test saw 3 rows where "exactly
+  2" was asserted. The failure has to be STICKY (`call >= 3` keeps throwing),
+  which is also the honest model of a real persist failure. Evidence:
+  `test/eval-run.test.ts` ("persist failure aborts the batch", AC-NF-11),
+  `src/modules/eval/helpers.ts` (`mapWithConcurrency`).
+
 - **2026-08-17** — `severityCounts` in `src/modules/mcp/projections.ts:125`
   guards with `if (f.severity in counts)`, and `in` walks the PROTOTYPE chain,
   so a finding whose severity is `'toString'` / `'constructor'` / `'valueOf'`

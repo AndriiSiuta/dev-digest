@@ -45,6 +45,30 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Doesn't Work
 
+- **2026-08-29** — With/without-skill benchmarking of `.claude/skills/zod` via
+  Anthropic's `skill-creator` eval harness hit a **ceiling effect**: 2 realistic
+  API-validation prompts × 5 programmatic assertions × 2 trials per config on
+  `claude-sonnet-5` scored **100% in both configurations** — the baselines used
+  `safeParse`, `z.infer`, `z.enum`, `z.coerce`, `.partial()` and per-field
+  `flatten()` unprompted, and even dodged the `z.coerce.boolean()`
+  `"false"`-is-truthy trap the skill's own reference warns about. The skill cost
+  +86% tokens (72k vs 39k) and +118% time (104s vs 48s) for zero measured
+  quality delta. For reference-style best-practice skills, with/without trials
+  only discriminate on tasks where the model's default is actually wrong — find
+  those first, or the benchmark measures nothing but overhead. Evidence:
+  `.claude/skills/zod/references/schema-coercion-for-form-data.md`; harness:
+  `github.com/anthropics/skills` → `skills/skill-creator`.
+
+- **2026-08-29** — A skill with dated examples can pull the model **backwards**:
+  in the same benchmark both with-skill runs kept v3-style `z.string().email()`,
+  explicitly citing the skill's examples and declining v4 idioms they could not
+  typecheck, while a baseline run freely used Zod v4's top-level `z.email()`.
+  The zod skill's rule files predate v4's error-customization rework
+  (`required_error` object form, instance `.flatten()` vs `z.flattenError`).
+  When refreshing a best-practice skill, updating the API surface in examples
+  matters more than adding rules. Evidence: `.claude/skills/zod/references/`
+  `error-custom-messages.md`, `error-use-flatten.md`.
+
 - **2026-08-28** — `implementation-planner` is read-only by design, so a
   Development Plan exists **only in the calling session's transcript** — nothing
   writes it to disk, and `plan-verifier` needs that exact text later to run its
@@ -112,6 +136,41 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `.gitignore` carries un-ignore rules for an `agent-runner/dist/` that does not exist yet; they are pre-staged for the Export-to-CI lesson (L06), not leftovers to clean up. Evidence: `.gitignore:3-6`, `reviewer-core/README.md:7-9`.
 
 ## Tool & Library Notes
+
+- **2026-08-29** — pnpm 11's `verify-deps-before-run` defaults to `install`, so
+  ANY `pnpm run` at the scripts-only root auto-writes an EMPTY root
+  `pnpm-lock.yaml` plus a `node_modules/` state dir before the script starts —
+  which is how `pnpm verify:l06` kept violating "no root lockfile" (AC-NF-09).
+  There is no per-project opt-out that this repo may use: the key is REFUSED
+  from `.npmrc` and from `package.json`'s `pnpm` field (pnpm 11 accepts it only
+  in `pnpm-workspace.yaml` — forbidden here — or machine-global config); the
+  env var `pnpm_config_verify_deps_before_run=false` (note the `pnpm_config_`
+  prefix, not `npm_config_`) does work but cannot ride the bare command. The
+  shipped mitigation is a scoped `/pnpm-lock.yaml` gitignore entry; the
+  artifacts are inert (lockfile body is `importers: {.: {}}`, nothing
+  installs). Same mechanism explains the client-side
+  `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`: an outdated `client/`
+  node_modules makes the pre-run check try a purge and abort without a TTY —
+  use `./node_modules/.bin/tsc` there. Evidence: `.gitignore:2-6`,
+  `package.json` (`verify:l06`), pnpm 11.24 `dist/pnpm.mjs`
+  (`"verify-deps-before-run": "install"` default).
+
+- **2026-08-29** — Anthropic's `skill-creator` (github.com/anthropics/skills,
+  not installed here — clone to use) tests the **skill artifact only**, and
+  covers that half well: `scripts/quick_validate.py` (frontmatter/structure —
+  shallow, passed `zod` instantly), parallel with/without-skill subagent trials,
+  `agents/grader.md` + `scripts/aggregate_benchmark.py` (pass rate, time, tokens,
+  mean±stddev, delta), `eval-viewer/generate_review.py --static` for human
+  review, and `scripts/run_loop.py` for description/trigger optimization via
+  `claude -p`. What it structurally cannot test — and DevDigest's course still
+  lacks — is the **workflow level**: whether a skill actually activates in a
+  real session (dispatch among 40+ competing skills), whether `CLAUDE.md`
+  routing rules are obeyed, and whether the subagent pipeline
+  (spec-creator → planner → implementer → plan-verifier) holds its gates.
+  `run_loop.py`'s trigger evals are the closest primitive to an activation
+  test; the pipeline gates have no ready-made harness at all. Timing/token
+  capture is manual: the numbers exist only in each task-completion
+  notification and must be written to `timing.json` immediately.
 
 - **2026-08-14** — `pnpm arch` is invoked by `pr-self-review` (phase 2) and named
   in `onion-architecture`'s Enforcement section, and the 2026-08-05 audit note
