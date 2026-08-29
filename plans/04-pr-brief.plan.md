@@ -1,6 +1,6 @@
 # Development Plan: PR Brief — the Why + Risk card
 
-**Spec:** `specs/04-pr-brief.md` (Status: agreed; all 14 clarifications resolved 2026-08-29)
+**Spec:** `specs/04-pr-brief.md` (Status: shipped; all 14 clarifications resolved 2026-08-29)
 **AC-IDs in scope:** AC-01 … AC-47, AC-NF-01 … AC-NF-12 (59 total)
 **Produced by:** `implementation-planner`, 2026-08-29
 **Maintainer rulings on the planner's two interpretation flags:** both accepted — see "Constraints & risks".

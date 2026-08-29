@@ -92,6 +92,7 @@ const REASON = {
   riskUngrounded: 'risk cites no changed file and no known endpoint',
   riskInventedEndpoint: 'risk cites an endpoint that does not exist',
   focusFile: 'review-focus file is not among the pull request’s changed files',
+  focusReason: 'review-focus item has no reason',
 } as const;
 
 export function groundBrief(
@@ -145,6 +146,16 @@ export function groundBrief(
   for (const item of draft.review_focus) {
     if (!inputs.files.has(item.file)) {
       dropped.push({ target: 'review_focus', ref: item.file, reason: REASON.focusFile });
+      continue;
+    }
+    // The draft schema types `reason` as a bare string, but the WIRE shape is
+    // `.min(1)` (`contracts/brief.ts:194-199`). Without this, a model returning
+    // `reason: ""` writes a row that `Brief.parse` then rejects on read-back —
+    // a 500 plus a persisted brief no `GET` can ever parse. Drop it here
+    // instead: the gate is where "what reaches the client" is guaranteed, and
+    // dropping degrades gracefully where a parse failure does not.
+    if (item.reason.trim() === '') {
+      dropped.push({ target: 'review_focus', ref: item.file, reason: REASON.focusReason });
       continue;
     }
     reviewFocus.push({

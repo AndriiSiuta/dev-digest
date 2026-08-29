@@ -91,6 +91,31 @@ describe('groundBrief', () => {
     });
   });
 
+  // The draft schema types `reason` as a bare string while the wire shape is
+  // `.min(1)`. An empty reason that survived the gate would be persisted and
+  // then rejected by `Brief.parse` on read-back — a 500 and a row no `GET`
+  // could parse. The gate has to drop it, not pass it through.
+  it('drops a review-focus item whose reason is empty, even on a real file (AC-44)', () => {
+    const result = groundBrief(
+      draft({
+        review_focus: [
+          { file: 'src/a.ts', line: 1, reason: '   ' },
+          { file: 'src/b.ts', line: 12, reason: 'new retry loop' },
+        ],
+      }),
+      { files: FILES, endpoints: ENDPOINTS },
+    );
+
+    expect(result.reviewFocus).toEqual([{ file: 'src/b.ts', line: 12, reason: 'new retry loop' }]);
+    expect(result.dropped).toContainEqual({
+      target: 'review_focus',
+      ref: 'src/a.ts',
+      reason: expect.any(String),
+    });
+    // Everything that survives must satisfy the wire contract.
+    for (const item of result.reviewFocus) expect(item.reason.length).toBeGreaterThan(0);
+  });
+
   it('removes an endpoint_ref absent from the blast set and drops the risk with it (AC-08)', () => {
     // The file_refs here are ALL valid: without an explicitly stubbed
     // `endpoint_refs` the filtering branch never runs and this test would prove
