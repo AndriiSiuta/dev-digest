@@ -3,7 +3,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { BlastPanel } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { BlastService } from './service.js';
 
 /**
  * blast module — the Blast Radius panel for a PR.
@@ -15,7 +14,7 @@ import { BlastService } from './service.js';
  */
 export default async function blastRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new BlastService(app.container.pullsRepo, app.container.repoIntel);
+  const service = app.container.blast;
 
   app.get(
     '/pulls/:id/blast',

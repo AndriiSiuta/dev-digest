@@ -94,6 +94,20 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-08-29** — A module whose `routes.ts` constructs its own service has
+  **no test seam at all**: `blast` and `smart-diff` both did
+  `new BlastService(app.container.pullsRepo, app.container.repoIntel)` inside
+  the plugin, so no `ContainerOverrides` entry could reach either and any
+  cross-module reader would have had to import the banned `service.ts`.
+  Promoting one is mechanical and costs no test change — declare
+  `XFacade { get(workspaceId, prId): Promise<…> }` in the module's own
+  `types.ts`, add `implements XFacade` to the service (the signature already
+  matched), add the `ContainerOverrides` slot plus a lazy getter that does the
+  exact wiring the route did, and the route becomes
+  `const service = app.container.blast;`. Routes reaching the container is legal
+  at the delivery ring. Evidence: `src/platform/container.ts` (`get blast()` /
+  `get smartDiff()`), `src/modules/blast/types.ts` (`BlastFacade`).
+
 - **2026-08-14** — `PromptAssembly` has NO diff field: `assemblePrompt` embeds
   the diff inside `user` as `## Diff to review` + `wrapUntrusted('diff', …)`, so
   every other section (`intent`/`skills`/`specs`/`callers`/`repo_map`/
@@ -173,6 +187,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
     (`fs.ts`, `mocks.ts` and `git/simple-git.ts` all reached the same helper).
 
 ## Tool & Library Notes
+
+- **2026-08-29** — Every `server/` script has a local-binary equivalent, which
+  is the way out when `pnpm` is not on the shell's PATH (agent shells here) and
+  corepack wants to purge `node_modules` before it will run: `pnpm typecheck` →
+  `./node_modules/.bin/tsc --noEmit -p tsconfig.json`, `pnpm test` →
+  `./node_modules/.bin/vitest run`, `pnpm db:generate` →
+  `./node_modules/.bin/drizzle-kit generate`, `pnpm db:migrate` →
+  `./node_modules/.bin/tsx src/db/migrate.ts`. The migration pair matters most:
+  `db:migrate` is a plain `tsx` entrypoint that reads `DATABASE_URL` through
+  `dotenv/config`, so `server/.env` is picked up either way. Evidence:
+  `server/package.json` `scripts`.
 
 - **2026-08-17** — `app.inject()` does NOT hang on the MCP route's hijacked
   reply, which settles the question that was blocking `test/mcp.it.test.ts`:

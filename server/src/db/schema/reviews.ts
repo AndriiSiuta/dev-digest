@@ -123,4 +123,13 @@ export const prBrief = pgTable('pr_brief', {
     .primaryKey()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
+  /**
+   * PR head SHA the brief was generated against — the cache key. A key inside
+   * the jsonb blob could not be queried or indexed. NOT NULL costs nothing:
+   * the table has never been written to, so there is no backfill.
+   */
+  headSha: text('head_sha').notNull(),
+  /** Provenance the card renders; nullable, mirroring `pr_intent.model`. */
+  model: text('model'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });

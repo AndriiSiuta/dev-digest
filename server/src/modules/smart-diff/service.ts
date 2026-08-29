@@ -1,7 +1,11 @@
 import type { SmartDiffResponse } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
 import { buildSmartDiff } from './helpers.js';
-import type { SmartDiffPullsRepo, SmartDiffReviewRepo } from './types.js';
+import type {
+  SmartDiffFacade,
+  SmartDiffPullsRepo,
+  SmartDiffReviewRepo,
+} from './types.js';
 
 /**
  * smart-diff — pure recombination of already-imported PR files and
@@ -14,7 +18,7 @@ import type { SmartDiffPullsRepo, SmartDiffReviewRepo } from './types.js';
  * full `Container`. Typed against this module's own port (`types.ts`), not
  * `PullsRepository` / `ReviewRepository` directly — see the comment there.
  */
-export class SmartDiffService {
+export class SmartDiffService implements SmartDiffFacade {
   constructor(
     private pullsRepo: SmartDiffPullsRepo,
     private reviewRepo: SmartDiffReviewRepo,

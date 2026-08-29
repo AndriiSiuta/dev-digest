@@ -20,6 +20,8 @@ import {
   SetContextDocsBody,
   AgentVersionConfig,
   SkillVersion,
+  PrBrief,
+  PrBriefRecord,
 } from '@devdigest/shared';
 
 /**
@@ -313,5 +315,77 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('PR Brief contracts', () => {
+  const record = {
+    pr_id: 'pr1',
+    brief: {
+      what: 'Adds a per-route rate limit to the public API.',
+      why: 'Closes #123 — the webhook endpoint was being hammered.',
+      risk_level: 'high',
+      risks: [
+        {
+          kind: 'security',
+          title: 'Limiter is keyed by IP only',
+          explanation: 'A shared NAT would be limited as one client.',
+          severity: 'high',
+          file_refs: ['src/api/public/webhooks.ts'],
+        },
+      ],
+      review_focus: [
+        { file: 'src/api/public/webhooks.ts', line: 61, reason: 'the new limiter key' },
+        { file: 'src/config.ts', reason: 'the window default' },
+      ],
+      degraded: true,
+      missing_inputs: [
+        { kind: 'intent', status: 'absent' },
+        { kind: 'blast', status: 'degraded' },
+        { kind: 'project_context', status: 'unreachable' },
+      ],
+    },
+    head_sha: 'abc123',
+    pr_head_sha: 'def456',
+    model: 'gpt-4.1',
+    generated_at: '2026-08-29T00:00:00.000Z',
+  };
+
+  it('PrBriefRecord round-trips a fully populated brief', () => {
+    const parsed = PrBriefRecord.parse(record);
+    expect(parsed.brief.risk_level).toBe('high');
+    expect(parsed.brief.review_focus[0]!.line).toBe(61);
+    // `line` is optional — a focus item without one still parses.
+    expect(parsed.brief.review_focus[1]!.line).toBeUndefined();
+    expect(parsed.head_sha).not.toBe(parsed.pr_head_sha);
+    expect(parsed.brief.missing_inputs).toHaveLength(3);
+  });
+
+  it('rejects a risk_level outside the four values', () => {
+    expect(() =>
+      PrBriefRecord.parse({ ...record, brief: { ...record.brief, risk_level: 'critical' } }),
+    ).toThrow();
+  });
+
+  it('rejects a review_focus item with an empty reason', () => {
+    expect(() =>
+      PrBriefRecord.parse({
+        ...record,
+        brief: {
+          ...record.brief,
+          review_focus: [{ file: 'src/a.ts', line: 1, reason: '' }],
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('PrBrief still parses its original shape — it is left alone deliberately', () => {
+    const brief = PrBrief.parse({
+      intent: { intent: 'x', in_scope: ['a'], out_of_scope: ['b'] },
+      blast: { changed_symbols: [], downstream: [], summary: 's' },
+      risks: { risks: [] },
+      history: { history: [] },
+    });
+    expect(brief.risks.risks).toEqual([]);
   });
 });

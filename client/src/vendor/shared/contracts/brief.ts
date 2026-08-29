@@ -170,3 +170,69 @@ export const PrBrief = z.object({
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+// ---- PR Brief v2 (the Why + Risk card) ----
+
+/**
+ * Whole-PR risk level, server-computed from the surviving risks. Distinct from
+ * `RiskSeverity`, which stays the three-valued per-risk vocabulary: this one
+ * needs a fourth value, `none`, for a brief with zero surviving risks. It is a
+ * measure of how much attention the PR needs — never a review verdict.
+ */
+export const BriefRiskLevel = z.enum(['high', 'medium', 'low', 'none']);
+export type BriefRiskLevel = z.infer<typeof BriefRiskLevel>;
+
+/** One "check this first" pointer. `line` is the new-side scroll anchor. */
+export const BriefFocusItem = z.object({
+  file: z.string().min(1),
+  line: z.number().int().nullish(),
+  reason: z.string().min(1),
+});
+export type BriefFocusItem = z.infer<typeof BriefFocusItem>;
+
+/** Which of the brief's inputs an entry in `missing_inputs` refers to. */
+export const BriefInputKind = z.enum(['intent', 'blast', 'smart_diff', 'project_context']);
+export type BriefInputKind = z.infer<typeof BriefInputKind>;
+
+/**
+ * What happened to that input: `absent` was never there; `degraded` was there
+ * but computed on a fallback; `unreachable` exists but could not be read.
+ * Follows `IntentSourceStatus` above and `SpecRead.status` in `trace.ts`, both
+ * of which distinguish "not there" from "referenced but unreachable".
+ */
+export const BriefInputStatus = z.enum(['absent', 'degraded', 'unreachable']);
+export type BriefInputStatus = z.infer<typeof BriefInputStatus>;
+
+export const BriefMissingInput = z.object({
+  kind: BriefInputKind,
+  status: BriefInputStatus,
+});
+export type BriefMissingInput = z.infer<typeof BriefMissingInput>;
+
+/** The brief payload itself (stored in `pr_brief.json`). */
+export const Brief = z.object({
+  what: z.string(),
+  why: z.string(),
+  risk_level: BriefRiskLevel,
+  risks: z.array(Risk),
+  review_focus: z.array(BriefFocusItem),
+  degraded: z.boolean(),
+  missing_inputs: z.array(BriefMissingInput),
+});
+export type Brief = z.infer<typeof Brief>;
+
+/**
+ * Route-level envelope for `GET`/`POST /pulls/:id/brief`. `head_sha` is what
+ * the brief was generated against; `pr_head_sha` is the PR's current head, so
+ * the card renders the outdated state without a second fetch (the
+ * `BlastPanel.head_sha` precedent above).
+ */
+export const PrBriefRecord = z.object({
+  pr_id: z.string(),
+  brief: Brief,
+  head_sha: z.string(),
+  pr_head_sha: z.string(),
+  model: z.string().nullable(),
+  generated_at: z.string(),
+});
+export type PrBriefRecord = z.infer<typeof PrBriefRecord>;

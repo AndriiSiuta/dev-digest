@@ -34,6 +34,10 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import type { IntentFacade } from '../modules/intent/types.js';
 import { IntentService } from '../modules/intent/service.js';
+import type { BlastFacade } from '../modules/blast/types.js';
+import { BlastService } from '../modules/blast/service.js';
+import type { SmartDiffFacade } from '../modules/smart-diff/types.js';
+import { SmartDiffService } from '../modules/smart-diff/service.js';
 import type {
   ProjectContextDocs,
   ProjectContextFacade,
@@ -64,6 +68,10 @@ export interface ContainerOverrides {
   repoIntel?: RepoIntel;
   /** intent facade — tests inject mock IntentFacade implementations. */
   intent?: IntentFacade;
+  /** blast facade — tests inject mock BlastFacade implementations. */
+  blast?: BlastFacade;
+  /** smart-diff facade — tests inject mock SmartDiffFacade implementations. */
+  smartDiff?: SmartDiffFacade;
   /** project-context document discovery/read — tests inject MockProjectContextDocs. */
   projectContextDocs?: ProjectContextDocs;
   /** project-context facade — the reviews run-executor resolves through this. */
@@ -100,6 +108,8 @@ export class Container {
   private _conventionsRepo?: ConventionsRepository;
   private _repoIntel?: RepoIntel;
   private _intent?: IntentFacade;
+  private _blast?: BlastFacade;
+  private _smartDiff?: SmartDiffFacade;
   private _projectContextDocs?: ProjectContextDocs;
   private _projectContext?: ProjectContextFacade;
   private _reviewRunner?: ReviewRunner;
@@ -178,6 +188,28 @@ export class Container {
     if (this.overrides.intent) return this.overrides.intent;
     this._intent ??= new IntentService(this);
     return this._intent;
+  }
+
+  /**
+   * The blast facade. The route and any cross-module reader (the brief) resolve
+   * the Blast Radius panel through this interface rather than constructing the
+   * service; tests inject a mock via `ContainerOverrides.blast`.
+   */
+  get blast(): BlastFacade {
+    if (this.overrides.blast) return this.overrides.blast;
+    this._blast ??= new BlastService(this.pullsRepo, this.repoIntel);
+    return this._blast;
+  }
+
+  /**
+   * The smart-diff facade. Same shape as `blast`: the route and any
+   * cross-module reader go through this interface; tests inject a mock via
+   * `ContainerOverrides.smartDiff`.
+   */
+  get smartDiff(): SmartDiffFacade {
+    if (this.overrides.smartDiff) return this.overrides.smartDiff;
+    this._smartDiff ??= new SmartDiffService(this.pullsRepo, this.reviewRepo);
+    return this._smartDiff;
   }
 
   /**
