@@ -180,6 +180,9 @@ export function buildHarness(opts: HarnessOptions = {}): Harness {
     fullName: 'acme/payments-api',
     defaultBranch: 'main',
     clonePath: '/mock/clones/acme/payments-api',
+    // Present because `RepoRow` requires it; the run path reads it through
+    // `reposRepo.getSearchRoots`, not off this fixture.
+    contextSearchRoots: null,
     lastPolledAt: null,
     createdBy: null,
     createdAt: new Date('2026-08-28T00:00:00.000Z'),

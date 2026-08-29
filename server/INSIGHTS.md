@@ -216,6 +216,27 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Tool & Library Notes
 
+- **2026-08-29** — A route's `config: { rateLimit: … }` is INERT in almost every
+  test in this repo: `app.ts` registers `@fastify/rate-limit` only when
+  `config.nodeEnv !== 'test'`, and every suite builds its config with
+  `NODE_ENV: 'test'`, so 11 injected POSTs all return 200 and a "the limit
+  works" assertion passes against nothing. Asserting the 429 needs its OWN app
+  built with `loadConfig({ ...process.env, NODE_ENV: 'development', LOG_LEVEL:
+  'silent' })` — the `silent` level is load-bearing, because `logger: false` is
+  what stops the `development` branch spinning up a `pino-pretty` transport.
+  Evidence: `src/app.ts` (the `nodeEnv !== 'test'` guard),
+  `test/brief-routes.test.ts` ("POST /pulls/:id/brief rate limit (AC-NF-06)").
+
+- **2026-08-29** — A hand-rolled `Db` fake for a repository must name tables via
+  `getTableName(table)` from `drizzle-orm`; `table._.name` is `undefined` on a
+  `pgTable`, and the `TypeError` it throws lands in the CALLER's best-effort
+  `catch` — `PullsService.detail` then silently returns the persisted-detail
+  branch, so `detail.id` is still right and the test passes having exercised the
+  wrong path. Symptom that gave it away: an assertion on the recorded writes
+  failing with `expected [] to include 'insert:pr_files'` while every other
+  assertion was green. Evidence: `test/brief-inert.test.ts` (the PR-sync case),
+  `src/modules/pulls/service.ts:153-171`.
+
 - **2026-08-29** — Every `server/` script has a local-binary equivalent, which
   is the way out when `pnpm` is not on the shell's PATH (agent shells here) and
   corepack wants to purge `node_modules` before it will run: `pnpm typecheck` →
@@ -411,6 +432,14 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   throwaway config and delete it:
   `printf '{"extends":"./tsconfig.json","compilerOptions":{"noEmit":true},"include":["test/<file>.test.ts","src/**/*.ts"]}' > .tsc-testcheck.json && ./node_modules/.bin/tsc --noEmit -p .tsc-testcheck.json; rm .tsc-testcheck.json`
   (`src/**` must stay in `include` or the path aliases resolve against nothing).
+  - **2026-08-29** — The check reaches further than the file you name: a new
+    test importing a SHARED helper drags that helper in too, so the first
+    throwaway run over `test/brief-inert.test.ts` failed on
+    `test/helpers/run-executor.ts(175,9): error TS2741: Property
+    'contextSearchRoots' is missing … in type RepoRow` — a fixture that had
+    been stale since the column was added, invisible to `pnpm typecheck` and to
+    vitest alike. Expect to fix someone else's fixture when you first type-check
+    a test that touches a shared harness.
 
 - **2026-08-14** — An it-test that triggers a review can silently reach a REAL
   LLM provider and burn money on any machine whose `~/.devdigest/secrets.json`
