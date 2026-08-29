@@ -409,6 +409,21 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-08-29** — A pull request that exists on GitHub but never appears in
+  the PR list means the token is dead, not that sync is broken: `PullsService`
+  syncs inside `GET /repos/:id/pulls` and `syncFromGitHub` is best-effort by
+  design, so an expired `GITHUB_TOKEN` degrades to "serving persisted PRs" with
+  only a `logger.warn` — the UI shows a stale-but-plausible list and no error
+  (`src/modules/pulls/service.ts:60-88`). `POST /repos/:id/refresh` does NOT
+  help; it enqueues clone + index jobs and touches no PR
+  (`src/modules/repos/service.ts:114-137`). Confirm with a direct call —
+  `python3 -c "import json,os,urllib.request as u; t=json.load(open(os.path.expanduser('~/.devdigest/secrets.json')))['GITHUB_TOKEN']; print(u.urlopen(u.Request('https://api.github.com/user',headers={'Authorization':f'Bearer {t}'})).status)"`
+  — a bad token returns `401 Bad credentials`. After replacing it the server
+  MUST restart: `container.github()` memoises the client in `this._github` for
+  the process lifetime (`src/platform/container.ts:318-325`), so the running
+  process keeps using the dead token. `tsx watch` reloads on a `touch
+  server/src/server.ts`.
+
 - **2026-08-20** — A Blast Radius panel showing "No changed symbols" on a fully
   indexed repo meant the INDEX was wrong, not the panel: tree-sitter puts a
   `decorator` node FIRST among `export_statement` children
