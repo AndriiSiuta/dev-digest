@@ -125,6 +125,17 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-08-29** — Adding a data hook to a widely-embedded leaf component
+  breaks every test that renders it through a PARENT: `useCreateEvalCase()`
+  inside `FindingCard` made `FindingsPanel.test.tsx` fail with `No QueryClient
+  set, use QueryClientProvider to set one` (and `MISSING_MESSAGE` for the new
+  namespace), because jsdom tests render without the app's providers. The
+  component's own test mocking the hook module is not enough — every suite
+  that renders an ancestor needs the same `vi.mock("@/lib/hooks/eval", …)` and
+  the new messages namespace in its `NextIntlClientProvider`. Find them with
+  `grep -rl <Component> src --include=*.test.tsx` plus the components those
+  files render. `src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.test.tsx`
+
 - **2026-08-29** — Running `next build` in `client/` while `next dev` is
   running on :3000 replaces the dev server's `.next/` with a production build,
   and EVERY route then answers 500 (`_error.js` HTML) until dev is restarted —

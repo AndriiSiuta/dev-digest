@@ -21,6 +21,8 @@ import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
+import { ApiError } from "../../../../../../../lib/api";
+import { useCreateEvalCase } from "../../../../../../../lib/hooks/eval";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -41,7 +43,9 @@ export function FindingCard({
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
+  const te = useTranslations("eval");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const createCase = useCreateEvalCase();
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -50,6 +54,10 @@ export function FindingCard({
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
+  // Duplicate creation is a surfaced outcome, not an error style (AC-13).
+  const caseExists =
+    createCase.error instanceof ApiError && createCase.error.code === "eval_case_exists";
+  const caseFailed = createCase.isError && !caseExists;
 
   return (
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
@@ -109,6 +117,30 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {/* Only a DECIDED finding can seed an eval case (AC-11/AC-12):
+                the accept/dismiss verdict is what labels it must_find /
+                must_not_flag on the server. */}
+            {muted && (
+              <>
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  icon="FlaskConical"
+                  disabled={createCase.isPending || createCase.isSuccess || caseExists}
+                  active={createCase.isSuccess || caseExists}
+                  onClick={() => createCase.mutate(f.id)}
+                >
+                  {createCase.isPending
+                    ? te("findingAction.adding")
+                    : createCase.isSuccess
+                      ? te("findingAction.added")
+                      : caseExists
+                        ? te("findingAction.exists")
+                        : te("findingAction.add")}
+                </Button>
+                {caseFailed && <span style={s.evalError}>{te("findingAction.failed")}</span>}
+              </>
+            )}
           </div>
         </div>
       )}

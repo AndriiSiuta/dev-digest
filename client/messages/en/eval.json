@@ -2,11 +2,8 @@
   "dashboard": {
     "defaultTitle": "Eval Dashboard",
     "loading": "Loading eval metrics…",
-    "casesSummary": "{count, plural, one {# eval case} other {# eval cases}} · gold set · {runs, plural, one {# run} other {# runs}}",
-    "configure": "Configure eval cases →",
-    "runEval": "Run eval ({count})",
-    "running": "Running…",
-    "metricTrend": "Metric trend",
+    "loadError": "Could not load the eval dashboard.",
+    "casesTotal": "{count, plural, one {# eval case} other {# eval cases}} across all agents",
     "recentRuns": "Recent runs",
     "noRuns": "No runs yet. Create an eval case and run it.",
     "metrics": {
@@ -14,71 +11,65 @@
       "precision": "PRECISION",
       "citationAccuracy": "CITATION ACCURACY"
     },
-    "legend": {
-      "recall": "Recall",
-      "precision": "Precision",
-      "citation": "Citation"
-    },
     "table": {
+      "agent": "Agent",
       "ranAt": "Ran at",
       "recall": "Recall",
       "precision": "Precision",
       "citation": "Citation",
       "pass": "Pass",
       "cost": "Cost"
-    },
-    "pass": "pass",
-    "fail": "fail"
-  },
-  "caseEditor": {
-    "newCase": "New eval case",
-    "caseTitle": "Eval case · {name}",
-    "runCase": "Run case",
-    "running": "Running…",
-    "save": "Save",
-    "saving": "Saving…",
-    "nameLabel": "Name",
-    "namePlaceholder": "stripe-key-leak",
-    "inputLabel": "Input",
-    "tabs": {
-      "diff": "Diff",
-      "prMeta": "PR meta"
-    },
-    "diffPlaceholder": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,6 +10,7 @@\n+  stripeKey: \"sk_live_...\"",
-    "titleLabel": "Title",
-    "titlePlaceholder": "Add Stripe integration",
-    "bodyLabel": "Body",
-    "bodyPlaceholder": "Wire up payments via Stripe SDK.",
-    "preview": "Preview",
-    "expectedOutput": "Expected output",
-    "validJson": "valid JSON",
-    "invalidJson": "invalid JSON",
-    "lastRunPassed": "Last run passed",
-    "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    }
   },
   "evalsTab": {
-    "metricsTitle": "Eval metrics",
-    "metricsSubtitle": "Recall / Precision / Citation for this agent's eval cases",
     "casesHeading": "Eval cases",
-    "newCase": "New case",
     "loadingCases": "Loading cases…",
-    "emptyCases": "No eval cases yet. Create one to assert this agent's expected findings on a sample diff.",
-    "neverRun": "never run",
-    "passed": "passed",
-    "failed": "failed",
-    "recallSuffix": " · recall {recall}%",
-    "run": "Run",
-    "running": "Running…",
-    "edit": "Edit",
-    "delete": "Delete"
+    "loadError": "Could not load eval data.",
+    "emptyCases": "No eval cases yet. Accept or dismiss a finding on a PR, then add it here as an eval case.",
+    "delete": "Delete",
+    "kind": {
+      "mustFind": "must find",
+      "mustNotFlag": "must not flag",
+      "unknown": "case"
+    },
+    "runBatch": "Run eval ({count, plural, one {# case} other {# cases}})",
+    "runningBatch": "Running eval…",
+    "refusedInFlight": "An eval run for this agent is already in flight.",
+    "runError": "The eval run failed.",
+    "latestHeading": "Latest result",
+    "metrics": {
+      "recall": "Recall",
+      "precision": "Precision",
+      "citation": "Citation"
+    },
+    "passedOfTotal": "{passed} / {total} passed",
+    "erroredCount": "{count, plural, one {# case errored} other {# cases errored}}",
+    "historyHeading": "Run history",
+    "noHistory": "No runs yet for this agent.",
+    "version": "v{version}",
+    "versionUnknown": "v?",
+    "cost": "Cost",
+    "compareHeading": "Comparison",
+    "selectTwo": "Select two runs in the history to compare them.",
+    "compareToggle": "Compare {label}",
+    "delta": "Δ {value}",
+    "perCaseHeading": "Per-case outcomes",
+    "casePass": "pass",
+    "caseFail": "fail",
+    "caseError": "error",
+    "caseMissing": "—"
+  },
+  "findingAction": {
+    "add": "Add as eval case",
+    "adding": "Adding…",
+    "added": "Added as eval case",
+    "exists": "Already an eval case",
+    "failed": "Could not create the eval case."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
     "crumbEvalDashboard": "Eval Dashboard",
     "crumbAgents": "Agents",
-    "crumbEvals": "Evals",
-    "crumbNewCase": "New case",
-    "crumbEvalCase": "Eval case"
+    "crumbEvals": "Evals"
   }
 }

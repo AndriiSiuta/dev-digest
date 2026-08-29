@@ -3,9 +3,22 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
+import evalMessages from "../../../../../../../../messages/en/eval.json";
 
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+// FindingCard's eval-case control lives inside this panel; without the mock
+// the real hook demands a QueryClientProvider.
+vi.mock("@/lib/hooks/eval", () => ({
+  useCreateEvalCase: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+  }),
 }));
 
 let searchParams = new URLSearchParams();
@@ -43,7 +56,7 @@ const FINDINGS: FindingRecord[] = [
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ prReview: messages, eval: evalMessages }}>
       {ui}
     </NextIntlClientProvider>,
   );
