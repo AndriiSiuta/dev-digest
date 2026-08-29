@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import {
+  AgentContextDocLink,
+  CiFailOn,
+  Provider,
+  ReviewStrategy,
+  SetContextDocsBody,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -9,6 +15,9 @@ import { AgentsService } from './service.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
+
+/** `?repo_id=` narrows the attachment list to one repository (the repo picker). */
+const ContextDocsQuery = z.object({ repo_id: z.string().uuid().optional() });
 
 /** `/agents/:id/versions/:version` — id is a uuid, version a positive integer. */
 const VersionParams = z.object({
@@ -26,6 +35,8 @@ const VersionParams = z.object({
  *   GET    /agents/:id/versions/:version → one config snapshot
  *   GET    /agents/:id/skills       → linked skills (ordered)
  *   POST   /agents/:id/skills       → set/reorder linked skills OR link one
+ *   GET    /agents/:id/context-docs → attached project-context documents
+ *   PUT    /agents/:id/context-docs → replace the set FOR ONE repository
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
@@ -181,6 +192,55 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
           );
       if (!links) throw new NotFoundError('Agent not found');
       return links;
+    },
+  );
+
+  // Attachment lives with its aggregate: this repository owns
+  // `agent_context_docs` and therefore the version snapshot (AC-30).
+  app.get(
+    '/agents/:id/context-docs',
+    {
+      schema: {
+        params: IdParams,
+        querystring: ContextDocsQuery,
+        // An output ALLOWLIST, like the project-context module's routes: a
+        // document's body must not be able to ride out on an attachment row.
+        response: { 200: z.array(AgentContextDocLink) },
+      },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const docs = await service.contextDocs(workspaceId, req.params.id, req.query.repo_id);
+      if (!docs) throw new NotFoundError('Agent not found');
+      return docs;
+    },
+  );
+
+  // Replace-the-set FOR ONE REPO. A body that replaced every repo's
+  // attachments would wipe the other repo's documents each time the Context
+  // tab's picker moved (AC-26, AC-27).
+  app.put(
+    '/agents/:id/context-docs',
+    {
+      schema: {
+        params: IdParams,
+        body: SetContextDocsBody,
+        response: { 200: z.array(AgentContextDocLink) },
+      },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const docs = await service.setContextDocs(
+        workspaceId,
+        req.params.id,
+        req.body.repo_id,
+        req.body.docs.map((d) => ({
+          path: d.path,
+          ...(d.enabled !== undefined ? { enabled: d.enabled } : {}),
+        })),
+      );
+      if (!docs) throw new NotFoundError('Agent or repository not found');
+      return docs;
     },
   );
 

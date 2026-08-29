@@ -27,6 +27,7 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 }));
 
 import RunTraceDrawer from "./RunTraceDrawer";
+import { normalizeSpecsRead } from "./helpers";
 
 afterEach(cleanup);
 
@@ -52,5 +53,52 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+
+  it("renders each project-context document with its path and token count (AC-15)", () => {
+    TRACE.specs_read = [
+      { path: "specs/api.md", tokens: 412, status: "included" },
+      { path: "docs/gone.md", tokens: 0, status: "unreachable" },
+      { path: "docs/big.md", tokens: 0, status: "omitted" },
+    ];
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("specs/api.md")).toBeInTheDocument();
+    expect(screen.getByText("412 tok")).toBeInTheDocument();
+    // The two non-included states are visually distinct and named.
+    expect(screen.getByText("docs/gone.md")).toBeInTheDocument();
+    expect(screen.getByText("unreachable")).toBeInTheDocument();
+    expect(screen.getByText("docs/big.md")).toBeInTheDocument();
+    expect(screen.getByText("omitted — over the context budget")).toBeInTheDocument();
+    TRACE.specs_read = [];
+  });
+
+  it("renders a legacy string[] specs_read as paths, not [object Object] (AC-15)", () => {
+    // Historical rows are read with a CAST, not a parse, on the server, so the
+    // pre-widening shape still arrives here at runtime.
+    TRACE.specs_read = ["specs/security-baseline.md"] as unknown as RunTrace["specs_read"];
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("specs/security-baseline.md")).toBeInTheDocument();
+    expect(screen.queryByText("[object Object]")).not.toBeInTheDocument();
+    TRACE.specs_read = [];
+  });
+
+  it("keeps the empty state when nothing was read", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("Specs read")).toBeInTheDocument();
+    expect(screen.getAllByText("none").length).toBeGreaterThan(0);
+  });
+});
+
+describe("normalizeSpecsRead", () => {
+  it("accepts both the current object shape and the legacy string[]", () => {
+    expect(
+      normalizeSpecsRead([
+        { path: "a.md", tokens: 10, status: "included" },
+      ] as RunTrace["specs_read"]),
+    ).toEqual([{ path: "a.md", tokens: 10, status: "included" }]);
+
+    expect(normalizeSpecsRead(["b.md"] as unknown as RunTrace["specs_read"])).toEqual([
+      { path: "b.md", tokens: 0, status: "included" },
+    ]);
   });
 });

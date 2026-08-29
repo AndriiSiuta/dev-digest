@@ -97,6 +97,13 @@ export const s = {
   specsWrap: { display: "flex", gap: 6, flexWrap: "wrap" } satisfies CSSProperties,
   specsNone: { color: "var(--text-muted)" } satisfies CSSProperties,
   spec: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
+  /** `unreachable` / `omitted` read differently from a document that got in. */
+  specSkipped: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    textDecoration: "line-through",
+  } satisfies CSSProperties,
+  specStatus: { fontSize: 11, color: "var(--warn, var(--text-muted))" } satisfies CSSProperties,
   statsRow: { display: "flex", gap: 10 } satisfies CSSProperties,
   rawPre: {
     margin: 0,

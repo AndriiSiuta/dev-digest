@@ -58,6 +58,19 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   `src/modules/intent/service.ts` (`getOrClassify`),
   `src/modules/reviews/run-executor.ts` (`resolveIntentBlock`).
 
+- **2026-08-28** — A "the feature is inert, pin the baseline" test passes
+  VACUOUSLY when the new facade is not on the fake container: `runOneAgent`
+  wraps every prompt-enrichment call in a best-effort `try/catch`, so
+  `this.container.projectContext.resolveForRun(...)` on an undefined facade
+  throws `Cannot read properties of undefined`, gets swallowed, and the prompt
+  is byte-identical for the wrong reason — proving nothing about the wiring the
+  test exists to guard. The fix is to wire the facade in the harness and have it
+  RESOLVE TO EMPTY (`{specs: [], specsRead: [], tokens: 0}`), so the empty case
+  runs the real code path. Same trap applies to `intent`, `repoIntel` and any
+  future best-effort slot. Evidence: `server/test/helpers/run-executor.ts`
+  (`projectContext` default), `src/modules/reviews/run-executor.ts`
+  (`buildProjectContext`).
+
 - **2026-07-29** — A green `pnpm test` does not mean the integration tests ran: `*.it.test.ts` files self-skip when no Docker daemon is reachable, so a machine without Docker reports success having exercised none of the DB paths. Evidence: `server/test/helpers/pg.ts:10`.
 
 - **2026-07-29** — `TESTING.md:43` promises a Windows `typecheck` job as the `@ast-grep/napi` prebuilt gate; the gate no longer exists, so a missing win32 prebuilt now reaches users uncaught. Evidence: commit `b7838c8` *"ci(server): drop the Windows typecheck matrix"*.
@@ -146,6 +159,18 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — `src/adapters/mocks.ts` doubles as a spec for unbuilt features: `MockLLMOptions.structuredBySchema` names the schemas of a conventions flow that did not exist (`'ConventionFileSelection'` then `'ConventionExtraction'`), so the intended two-step design — model RANKS a code-built candidate file list, then extracts — is discoverable there before any module is written. Evidence: `src/adapters/mocks.ts:46-52`.
 
 - **2026-08-05** — `src/adapters/` is not a pure IO ring: it also holds pure functions that services legitimately import, so an import-path rule of the form "services must not import `adapters/*`" would flag correct code — classify by whether the code leaves the process, not by folder. Evidence: `src/adapters/git/diff-parser.ts:14` (`parseUnifiedDiff`, imported by `src/modules/reviews/diff-loader.ts:3`), `src/adapters/codeindex/extract.ts:182` (`extractEndpoints`, imported by `src/modules/repo-intel/service.ts:22`).
+  - **2026-08-28** — The corollary that bites when you write the adapter: an
+    adapter may NOT import its own module's `helpers.ts`. The
+    `adapters-stay-outermost` rule is `^src/adapters/` → `^src/modules/(?!.*(constants|types)\.ts$)`,
+    so only a module's `constants.ts` / `types.ts` are reachable from
+    `adapters/`. A pure path helper that both the adapter and the module need
+    therefore lives UNDER `adapters/` and is re-exported by the module's
+    `helpers.ts`, not the other way round — `src/adapters/projectcontext/paths.ts`
+    (`resolveWithinRoots`, `docTypeForRoot`) re-exported from
+    `src/modules/project-context/helpers.ts`. The failure is silent until you
+    run it: `pnpm typecheck` is green and three violations only appear under
+    `./node_modules/.bin/depcruise --config .dependency-cruiser.cjs src`
+    (`fs.ts`, `mocks.ts` and `git/simple-git.ts` all reached the same helper).
 
 ## Tool & Library Notes
 

@@ -1,24 +1,35 @@
 {
-  "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
-  "loadError": "Couldn’t load specs",
-  "kb": "{kb}kb",
+  "title": "Project context",
+  "subtitle": "Markdown documents from this repository that this agent reads with every review. Nothing is attached until you tick it.",
+  "skillSubtitle": "Markdown documents from a repository that any agent using this skill reads with its review.",
+  "sectionTitle": "Project context to use",
+  "repoLabel": "Repository",
+  "repoPlaceholder": "Choose a repository",
+  "repoHint": "Documents are attached per repository. Switching here does not change what you attached elsewhere.",
+  "filterPlaceholder": "Filter by path",
+  "attachedCount": "{attached} of {total} attached",
+  "attach": "Attach {path}",
+  "detach": "Detach {path}",
+  "size": "{kb} kB",
+  "previewTitle": "Preview",
+  "previewHint": "Read-only. Opening a document here does not attach it.",
+  "previewEmpty": "Select a document to preview it.",
+  "previewLoadError": "Couldn’t read that document.",
+  "loadError": "Couldn’t load this repository’s documents.",
+  "saveError": "Couldn’t save the attachment.",
+  "saving": "Saving…",
+  "autoSaved": "Saved automatically",
+  "retry": "Try again",
+  "searchRootsHint": "Markdown found under {roots} in this repository’s checkout.",
+  "trust": "Attached documents are passed to the model inside untrusted-data delimiters and are covered by the review prompt’s injection guard. They are read from the repository checkout at review time, never stored here, and never edited from the studio.",
   "empty": {
-    "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+    "title": "No documents found",
+    "body": "This repository’s checkout has no markdown files under its configured search roots — by default specs/, docs/ and insights/. Documents are read from the checkout at review time, so nothing is imported or copied.",
+    "noRepo": "Choose a repository to list its documents."
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
-  },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "type": {
+    "spec": "spec",
+    "doc": "doc",
+    "insight": "insight"
   }
 }

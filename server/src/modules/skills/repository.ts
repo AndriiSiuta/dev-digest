@@ -34,6 +34,20 @@ export interface UpdateSkill {
   enabled?: boolean;
 }
 
+/** One attached project-context document, as stored in `skill_context_docs`. */
+export interface SkillContextDocLinkRow {
+  repoId: string;
+  path: string;
+  order: number;
+  enabled: boolean;
+}
+
+/** One entry of the ordered set written by `setContextDocs`. */
+export interface SkillContextDocLinkInput {
+  path: string;
+  enabled?: boolean;
+}
+
 /** A skill plus how many agents link it (the grid's used-by count). */
 export interface SkillWithUsage {
   skill: SkillRow;
@@ -146,12 +160,16 @@ export class SkillsRepository {
     message?: string,
   ): Promise<void> {
     const trimmed = message?.trim();
+    // Attached documents across every repo — the snapshot held only `body`
+    // before this feature and had nowhere to record an attachment (AC-31).
+    const contextDocs = await this.enabledContextDocRefs(row.id);
     await this.db
       .insert(t.skillVersions)
       .values({
         skillId: row.id,
         version,
         body: row.body,
+        contextDocs,
         // Empty string and "not supplied" mean the same thing here — both leave
         // the column NULL so the UI falls back to the derived summary.
         message: trimmed ? trimmed : null,
@@ -187,5 +205,103 @@ export class SkillsRepository {
       .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
       .where(eq(t.agentSkills.skillId, skillId))
       .orderBy(asc(t.agents.name));
+  }
+
+  // ---- skill_context_docs (A1 owns the skill side) ------------------------
+  //
+  // Owned here for the same reason the agent side is owned by the agents
+  // repository: `snapshotVersion` must read the current attachment set to write
+  // it into `skill_versions.context_docs`.
+
+  /** Attachments for a skill, optionally narrowed to one repo. Editor-facing. */
+  async contextDocsForSkill(skillId: string, repoId?: string): Promise<SkillContextDocLinkRow[]> {
+    return this.db
+      .select({
+        repoId: t.skillContextDocs.repoId,
+        path: t.skillContextDocs.path,
+        order: t.skillContextDocs.order,
+        enabled: t.skillContextDocs.enabled,
+      })
+      .from(t.skillContextDocs)
+      .where(
+        repoId === undefined
+          ? eq(t.skillContextDocs.skillId, skillId)
+          : and(eq(t.skillContextDocs.skillId, skillId), eq(t.skillContextDocs.repoId, repoId)),
+      )
+      .orderBy(asc(t.skillContextDocs.repoId), asc(t.skillContextDocs.order));
+  }
+
+  /**
+   * The documents a linked skill contributes to a run's prompt FOR ONE REPO, in
+   * attachment order. They reach the untrusted `## Project context` section,
+   * never the trusted `## Skills / rules` block (AC-13).
+   */
+  async enabledContextDocsForPrompt(
+    skillId: string,
+    repoId: string,
+  ): Promise<{ path: string; order: number }[]> {
+    return this.db
+      .select({ path: t.skillContextDocs.path, order: t.skillContextDocs.order })
+      .from(t.skillContextDocs)
+      .where(
+        and(
+          eq(t.skillContextDocs.skillId, skillId),
+          eq(t.skillContextDocs.repoId, repoId),
+          eq(t.skillContextDocs.enabled, true),
+        ),
+      )
+      .orderBy(asc(t.skillContextDocs.order));
+  }
+
+  /** Every enabled attachment as a `ContextDocRef`, for the version snapshot. */
+  private async enabledContextDocRefs(
+    skillId: string,
+  ): Promise<{ repo_id: string; path: string }[]> {
+    const rows = await this.db
+      .select({ repoId: t.skillContextDocs.repoId, path: t.skillContextDocs.path })
+      .from(t.skillContextDocs)
+      .where(and(eq(t.skillContextDocs.skillId, skillId), eq(t.skillContextDocs.enabled, true)))
+      .orderBy(asc(t.skillContextDocs.repoId), asc(t.skillContextDocs.order));
+    return rows.map((r) => ({ repo_id: r.repoId, path: r.path }));
+  }
+
+  /**
+   * Replace the attachment set for ONE (skill, repo) pair, order = index.
+   * Scoped to the repo for the same reason as the agent side (AC-26/AC-27), and
+   * non-transactional for the same reason (see server/INSIGHTS.md).
+   */
+  async setContextDocs(
+    skillId: string,
+    repoId: string,
+    docs: SkillContextDocLinkInput[],
+  ): Promise<void> {
+    await this.db
+      .delete(t.skillContextDocs)
+      .where(and(eq(t.skillContextDocs.skillId, skillId), eq(t.skillContextDocs.repoId, repoId)));
+    if (docs.length > 0) {
+      await this.db.insert(t.skillContextDocs).values(
+        docs.map((d, i) => ({
+          skillId,
+          repoId,
+          path: d.path,
+          order: i,
+          enabled: d.enabled ?? true,
+        })),
+      );
+    }
+    await this.bumpForContextChange(skillId);
+  }
+
+  /**
+   * Bump the skill's version and snapshot it, because its attached documents
+   * changed — attachments shape the prompt exactly as the body does (AC-31).
+   */
+  private async bumpForContextChange(skillId: string): Promise<void> {
+    const [row] = await this.db
+      .update(t.skills)
+      .set({ version: sql`${t.skills.version} + 1` })
+      .where(eq(t.skills.id, skillId))
+      .returning();
+    if (row) await this.snapshotVersion(row, row.version);
   }
 }

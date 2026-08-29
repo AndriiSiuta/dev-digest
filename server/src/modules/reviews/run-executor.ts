@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Provider, Review, RunTrace, SpecRead, UnifiedDiff } from '@devdigest/shared';
 import {
   reviewPullRequest,
   countBlockers,
@@ -209,6 +209,12 @@ export class ReviewRunExecutor {
       // section when the array is empty.
       const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
 
+      // Project context — the maintainer's attached repository documents, read
+      // from the checkout at run time. Same best-effort slot as the skills and
+      // repo-intel pre-work above: a failure logs and yields nothing, and the
+      // prompt is then byte-identical to the no-documents baseline (AC-14).
+      const projectContext = await this.buildProjectContext(workspaceId, repo, agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -224,6 +230,11 @@ export class ReviewRunExecutor {
         // Linked skills, already rendered as `### name` blocks. Omitted entirely
         // when the agent has none.
         ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
+        // Attached project-context documents, each carrying its repo-relative
+        // path so a finding can name it. Conditional spread, like every
+        // neighbouring slot: an empty result adds NO KEY AT ALL, so the prompt
+        // stays byte-identical to today (AC-10, AC-14).
+        ...(projectContext.specs.length > 0 ? { specs: projectContext.specs } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -345,7 +356,9 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        // Path + token size per document, including the ones that were
+        // unreachable or dropped at the ceiling (AC-15).
+        specs_read: projectContext.specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -444,6 +457,55 @@ export class ReviewRunExecutor {
     } catch (err) {
       runLog.info(`skills: skipped — ${(err as Error).message}`);
       return [];
+    }
+  }
+
+  /**
+   * Resolve the agent's attached project-context documents into prompt blocks.
+   *
+   * Best-effort by design, exactly like `buildSkillBlocks`: a DB hiccup, a
+   * missing checkout or an unreadable document must not fail the review, so a
+   * failure logs and yields nothing and the prompt matches the no-documents
+   * baseline (AC-14, AC-19).
+   *
+   * Resolution happens BEFORE the model call and issues no model call of its
+   * own (AC-16) — the token numbers come from `container.tokenizer`, the same
+   * tiktoken-backed estimator the skills line uses (AC-NF-06).
+   */
+  private async buildProjectContext(
+    workspaceId: string,
+    repo: typeof schema.repos.$inferSelect,
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ specs: { path: string; text: string }[]; specsRead: SpecRead[] }> {
+    try {
+      // Through the container: `reviews` must not import the project-context
+      // module's service directly (no-cross-module-internals).
+      const resolved = await this.container.projectContext.resolveForRun({
+        workspaceId,
+        agentId,
+        repo: { id: repo.id, owner: repo.owner, name: repo.name },
+      });
+      if (resolved.specsRead.length === 0) return { specs: [], specsRead: [] };
+      // PATHS, COUNTS AND TOKEN NUMBERS ONLY — never a byte of document text
+      // (AC-NF-02). Every logged line is streamed over SSE *and* persisted into
+      // `run_traces.log`, which is why `platform/prompt-log.ts` is structurally
+      // content-free and why this line holds to the same bar. Shape matches the
+      // skills line above (AC-17).
+      const skipped = resolved.specsRead.filter((s) => s.status !== 'included');
+      runLog.info(
+        `project context: ${resolved.specs.length} document(s) attached ` +
+          `(+~${resolved.tokens} tokens) — ${resolved.specs.map((s) => s.path).join(', ')}` +
+          (skipped.length > 0
+            ? `; ${skipped.length} skipped (${skipped
+                .map((s) => `${s.path}: ${s.status}`)
+                .join(', ')})`
+            : ''),
+      );
+      return { specs: resolved.specs, specsRead: resolved.specsRead };
+    } catch (err) {
+      runLog.info(`project context: skipped — ${(err as Error).message}`);
+      return { specs: [], specsRead: [] };
     }
   }
 
@@ -560,6 +622,10 @@ export class ReviewRunExecutor {
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],
+      // Deliberately empty, and NOT the resolved list: on a cancel or a failure
+      // the trace must not claim documents that never reached a model call
+      // (AC-23). This trace is built from the run's event buffer for exactly
+      // that reason — do not "improve" it by copying the resolution in.
       specs_read: [],
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };

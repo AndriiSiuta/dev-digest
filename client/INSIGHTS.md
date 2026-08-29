@@ -42,6 +42,19 @@ _None yet._
 
 ## Codebase Patterns
 
+- **2026-08-29** — A tab editor's `?tab=` whitelist is defined TWICE — once as
+  the tab strip (`_components/<Editor>/constants.ts`) and once as the route's
+  `VALID_TABS` — so adding a tab to the strip alone ships a tab that is
+  clickable, sets `?tab=`, and is then silently rejected by the page's fallback
+  to `"config"`. That is exactly how the agent editor's Context tab shipped
+  dead. Derive it (`export const VALID_TABS: readonly string[] = TABS.map((t)
+  => t.key)`) as `src/app/skills/constants.ts:45` does. Component-level tests
+  cannot catch this — they render the editor with `tab` already set; the cheap
+  guard is a page-level test that mocks `next/navigation`, `app-shell` and the
+  editor itself down to `({ tab }) => <div>tab: {tab}</div>` and asserts every
+  key in `TABS` round-trips. `src/app/agents/[id]/page.test.tsx`,
+  `src/app/agents/[id]/_components/AgentEditor/constants.ts:19`
+
 - **2026-08-16** — A query key can piggyback on an EXISTING invalidation call
   for free: `useSmartDiff` uses `["reviews", prId, "smart-diff"]` (not its own
   top-level key) precisely because TanStack Query's `invalidateQueries`

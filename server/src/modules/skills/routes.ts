@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { SkillSource, SkillType } from '@devdigest/shared';
+import {
+  SetContextDocsBody,
+  SkillContextDocLink,
+  SkillSource,
+  SkillType,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -21,8 +26,13 @@ import { MAX_VERSION_MESSAGE_CHARS } from './constants.js';
  *   GET    /skills/:id/versions        → body history, newest first
  *   GET    /skills/:id/versions/:version → one snapshot
  *   GET    /skills/:id/agents          → agents linking it (delete confirmation)
+ *   GET    /skills/:id/context-docs    → attached project-context documents
+ *   PUT    /skills/:id/context-docs    → replace the set FOR ONE repository
  *   POST   /skills/import              → parse an upload into a PREVIEW (no write)
  */
+
+/** `?repo_id=` narrows the attachment list to one repository (the repo picker). */
+const ContextDocsQuery = z.object({ repo_id: z.string().uuid().optional() });
 
 /** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
 const VersionParams = z.object({
@@ -117,6 +127,53 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     if (!agents) throw new NotFoundError('Skill not found');
     return agents;
   });
+
+  // The skill editor's "Project context to use" section. Attachment lives with
+  // its aggregate: this repository owns `skill_context_docs` and therefore the
+  // version snapshot (AC-31).
+  app.get(
+    '/skills/:id/context-docs',
+    {
+      schema: {
+        params: IdParams,
+        querystring: ContextDocsQuery,
+        // An output ALLOWLIST, like the project-context module's routes: a
+        // document's body must not be able to ride out on an attachment row.
+        response: { 200: z.array(SkillContextDocLink) },
+      },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const docs = await service.contextDocs(workspaceId, req.params.id, req.query.repo_id);
+      if (!docs) throw new NotFoundError('Skill not found');
+      return docs;
+    },
+  );
+
+  app.put(
+    '/skills/:id/context-docs',
+    {
+      schema: {
+        params: IdParams,
+        body: SetContextDocsBody,
+        response: { 200: z.array(SkillContextDocLink) },
+      },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const docs = await service.setContextDocs(
+        workspaceId,
+        req.params.id,
+        req.body.repo_id,
+        req.body.docs.map((d) => ({
+          path: d.path,
+          ...(d.enabled !== undefined ? { enabled: d.enabled } : {}),
+        })),
+      );
+      if (!docs) throw new NotFoundError('Skill or repository not found');
+      return docs;
+    },
+  );
 
   // Parses only — the preview is shown to the user, who then POSTs /skills.
   app.post('/skills/import', { schema: { body: ImportSkillBody } }, async (req) => {

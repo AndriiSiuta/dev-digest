@@ -44,6 +44,12 @@ const INTENT_INSTRUCTION =
   'Report findings as usual; additionally set `in_scope: false` on any finding outside the ' +
   'declared scope. Severe defects must still be reported regardless of scope.';
 
+/**
+ * One element of `PromptParts.specs`: either a bare chunk (legacy, positional
+ * label) or a document that knows its own repo-relative path.
+ */
+export type SpecPart = string | { path: string; text: string };
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -58,8 +64,17 @@ export interface PromptParts {
   skills?: string[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
-  /** Project-context spec chunks (untrusted content). */
-  specs?: string[];
+  /**
+   * Project-context documents (untrusted content).
+   *
+   * A plain STRING renders exactly as it always has — `spec-0`, `spec-1` — so
+   * every existing caller is byte-unchanged. An OBJECT additionally carries the
+   * document's repo-relative path, which becomes both the block's `source`
+   * label and its first body line, so a finding can name the document it came
+   * from (`specs/03-project-context-folder.md`, AC-12). A model cannot cite a
+   * document it only knows as `spec-0`.
+   */
+  specs?: SpecPart[];
   /**
    * Repo skeleton / map (T3): top-ranked symbols by signature, token-budgeted.
    * Untrusted (derived from repo code) — delimiter-wrapped. Rendered before
@@ -108,7 +123,15 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       : undefined;
   const specsBlock =
     parts.specs && parts.specs.length > 0
-      ? parts.specs.map((s, i) => wrapUntrusted(`spec-${i}`, s)).join('\n\n')
+      ? parts.specs
+          .map((s, i) =>
+            typeof s === 'string'
+              ? wrapUntrusted(`spec-${i}`, s)
+              : // Path in the delimiter attribute AND on the first body line, so
+                // AC-12 holds on the block body and not only on the attribute.
+                wrapUntrusted(s.path, `${s.path}\n\n${s.text}`),
+          )
+          .join('\n\n')
       : undefined;
 
   const prDescription =

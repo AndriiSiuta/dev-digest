@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ContextDocRef } from './project-context.js';
 
 /**
  * Conformance, Onboarding, Eval, Memory, Conventions, Skills,
@@ -144,6 +145,12 @@ export const SkillVersion = z.object({
   skill_id: z.string(),
   version: z.number().int(),
   body: z.string(),
+  /**
+   * The documents attached to the skill at snapshot time — paths only, never
+   * their text. `.default([])` is load-bearing: every `skill_versions` row
+   * written before this field existed parses through here.
+   */
+  context_docs: z.array(ContextDocRef).default([]),
   message: z.string().nullish(),
   created_at: z.string(),
 });
@@ -327,6 +334,14 @@ export const AgentVersionConfig = z.object({
   ci_fail_on: CiFailOn,
   repo_intel: z.boolean(),
   skills: z.array(z.string()),
+  /**
+   * The project-context documents attached at snapshot time — paths only. The
+   * content is deliberately not snapshotted, so this list is the only durable
+   * record of what a past run was told to read. `.default([])` is load-bearing:
+   * `toAgentVersionDto` parses `config_json` on read, so every row written
+   * before this field existed would throw without it.
+   */
+  context_docs: z.array(ContextDocRef).default([]),
 });
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 

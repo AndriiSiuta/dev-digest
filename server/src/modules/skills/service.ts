@@ -2,13 +2,14 @@ import { unzipSync } from 'fflate';
 import type { Container } from '../../platform/container.js';
 import type {
   Skill,
+  SkillContextDocLink,
   SkillImportPreview,
   SkillSummary,
   SkillType,
   SkillVersion,
 } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
-import { SkillsRepository } from './repository.js';
+import { SkillsRepository, type SkillContextDocLinkInput } from './repository.js';
 import {
   isExecutableLooking,
   parseSkillMarkdown,
@@ -54,7 +55,7 @@ export interface UpdateSkillInput {
 export class SkillsService {
   private repo: SkillsRepository;
 
-  constructor(container: Container) {
+  constructor(private container: Container) {
     this.repo = new SkillsRepository(container.db);
   }
 
@@ -221,5 +222,43 @@ export class SkillsService {
           ]
         : [],
     };
+  }
+
+  // ---- project-context attachments ("Project context to use") -------------
+
+  /** A skill's attached documents, optionally narrowed to one repository. */
+  async contextDocs(
+    workspaceId: string,
+    skillId: string,
+    repoId?: string,
+  ): Promise<SkillContextDocLink[] | undefined> {
+    const skill = await this.repo.getById(workspaceId, skillId);
+    if (!skill) return undefined;
+    const rows = await this.repo.contextDocsForSkill(skillId, repoId);
+    return rows.map((r) => ({
+      skill_id: skillId,
+      repo_id: r.repoId,
+      path: r.path,
+      order: r.order,
+      enabled: r.enabled,
+    }));
+  }
+
+  /**
+   * Replace the attachment set for ONE repository (AC-08, AC-26). Bumps the
+   * skill's version and records the paths in the snapshot (AC-31).
+   */
+  async setContextDocs(
+    workspaceId: string,
+    skillId: string,
+    repoId: string,
+    docs: SkillContextDocLinkInput[],
+  ): Promise<SkillContextDocLink[] | undefined> {
+    const skill = await this.repo.getById(workspaceId, skillId);
+    if (!skill) return undefined;
+    const repo = await this.container.reposRepo.getById(workspaceId, repoId);
+    if (!repo) return undefined;
+    await this.repo.setContextDocs(skillId, repoId, docs);
+    return this.contextDocs(workspaceId, skillId);
   }
 }

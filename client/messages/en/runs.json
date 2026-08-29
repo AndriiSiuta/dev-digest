@@ -37,7 +37,12 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specTokens": "{tokens} tok",
+      "spec": {
+        "unreachable": "unreachable",
+        "omitted": "omitted — over the context budget"
+      }
     },
     "stat": {
       "duration": "DURATION",
@@ -72,7 +77,7 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
     "noTrace": "No trace available yet."

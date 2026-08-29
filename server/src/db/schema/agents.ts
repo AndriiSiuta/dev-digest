@@ -1,7 +1,19 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  jsonb,
+  primaryKey,
+  index,
+  check,
+} from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
+import { repos } from './repos';
 
 // ============================================================ Agents & skills
 
@@ -69,5 +81,44 @@ export const agentSkills = pgTable(
     // Reverse lookup: "which agents use this skill?" (the Skills grid's used-by
     // count and the delete confirmation). The PK covers agent_id only.
     skillIdx: index('agent_skills_skill_idx').on(t.skillId),
+  }),
+);
+
+/**
+ * Project-context documents attached to an agent, identified by the triple
+ * `(agent, repo, path)` — an agent reused across repositories carries a
+ * different document set in each. The document's TEXT is deliberately absent:
+ * it is read from the checkout at run time, so there is no body column here
+ * and nothing to go stale (`specs/03-project-context-folder.md`, AC-07).
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    /** Repo-relative, `/`-separated. Constrained below, not just in TypeScript. */
+    path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
+    // Per-link switch, the same shape `agent_skills.enabled` carries: unticking
+    // keeps neither the row nor its order — the Context tab replaces the set —
+    // but a future "keep it, mute it" affordance needs no migration.
+    enabled: boolean('enabled').notNull().default(true),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.repoId, t.path] }),
+    // "Which agents read documents from this repo?" — Postgres does not index
+    // foreign keys, and the PK's leading column is agent_id.
+    repoIdx: index('agent_context_docs_repo_idx').on(t.repoId),
+    // Defence in depth for AC-NF-01 at the storage layer: the reader refuses a
+    // traversal path, and so does the table. Safe to declare here because the
+    // table is brand new — `ADD CONSTRAINT … CHECK` validates existing rows.
+    pathCk: check(
+      'agent_context_docs_path_ck',
+      sql`${t.path} <> '' and ${t.path} !~ '^/' and ${t.path} !~ '(^|/)\\.\\.($|/)'`,
+    ),
   }),
 );

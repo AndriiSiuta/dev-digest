@@ -31,7 +31,10 @@ import type {
   AuthWorkspace,
   SecretsProvider,
   SecretKey,
+  ProjectContextDoc,
 } from '@devdigest/shared';
+import type { ProjectContextDocs } from '../modules/project-context/types.js';
+import { docTypeForRoot } from './projectcontext/paths.js';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
 /**
@@ -328,5 +331,58 @@ export class MockSecretsProvider implements SecretsProvider {
   constructor(private secrets: Partial<Record<string, string>> = {}) {}
   async get(key: SecretKey): Promise<string | undefined> {
     return this.secrets[key as string];
+  }
+}
+
+// ---------- Mock project-context documents ----------
+/**
+ * In-memory `ProjectContextDocs`, backed by a `path → content` record.
+ *
+ * Note what it does NOT do: `MockGitClient.readFile` returns `''` for a path it
+ * does not hold, which would make an unreachable document look like an empty
+ * one. This mock THROWS an ENOENT-shaped error instead, because AC-18
+ * ("skip it, mark it unreachable") cannot be exercised otherwise.
+ */
+export class MockProjectContextDocs implements ProjectContextDocs {
+  public reads: string[] = [];
+
+  constructor(private files: Record<string, string> = {}) {}
+
+  /** Change a document between two runs — the fixture edit AC-09 needs. */
+  set(path: string, content: string): void {
+    this.files[path] = content;
+  }
+
+  /** Remove a document so an attached path becomes unreachable. */
+  delete(path: string): void {
+    delete this.files[path];
+  }
+
+  async list(_repo: RepoRef, roots: string[]): Promise<ProjectContextDoc[]> {
+    const out: ProjectContextDoc[] = [];
+    const seen = new Set<string>();
+    for (const root of roots) {
+      const prefix = root.endsWith('/') ? root : `${root}/`;
+      for (const [path, content] of Object.entries(this.files)) {
+        if (!path.startsWith(prefix) || seen.has(path)) continue;
+        seen.add(path);
+        out.push({ path, type: docTypeForRoot(root), bytes: Buffer.byteLength(content, 'utf8') });
+      }
+    }
+    return out.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  async read(_repo: RepoRef, roots: string[], path: string): Promise<string> {
+    this.reads.push(path);
+    if (!roots.some((r) => path.startsWith(r.endsWith('/') ? r : `${r}/`))) {
+      throw new Error(`EACCES: path outside the configured search roots, open '${path}'`);
+    }
+    const content = this.files[path];
+    if (content === undefined) {
+      throw Object.assign(new Error(`ENOENT: no such file or directory, open '${path}'`), {
+        code: 'ENOENT',
+      });
+    }
+    return content;
   }
 }

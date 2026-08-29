@@ -56,6 +56,20 @@ export interface SkillLinkInput {
   enabled?: boolean;
 }
 
+/** One attached project-context document, as stored in `agent_context_docs`. */
+export interface ContextDocLinkRow {
+  repoId: string;
+  path: string;
+  order: number;
+  enabled: boolean;
+}
+
+/** One entry of the ordered set written by `setContextDocs`. */
+export interface ContextDocLinkInput {
+  path: string;
+  enabled?: boolean;
+}
+
 export class AgentsRepository {
   constructor(private db: Db) {}
 
@@ -172,6 +186,11 @@ export class AgentsRepository {
     // Only the ENABLED links are recorded: the snapshot answers "what shaped
     // this version's prompt", and a disabled link shapes nothing.
     const skills = await this.enabledSkillIdsForAgent(row.id);
+    // Attached documents across EVERY repo, because the version snapshot is not
+    // per-repo: a past run must be able to show which documents it was told to
+    // read, and the content is deliberately never snapshotted, so this list is
+    // the only durable record of that instruction (AC-30).
+    const contextDocs = await this.enabledContextDocRefs(row.id);
     await this.db
       .insert(t.agentVersions)
       .values({
@@ -186,6 +205,7 @@ export class AgentsRepository {
           ci_fail_on: row.ciFailOn,
           repo_intel: row.repoIntel,
           skills,
+          context_docs: contextDocs,
         },
       })
       .onConflictDoNothing();
@@ -310,5 +330,114 @@ export class AgentsRepository {
       );
     }
     await this.bumpForSkillChange(agentId);
+  }
+
+  // ---- agent_context_docs (A2 owns the agent side) ------------------------
+  //
+  // This table lives with the agents repository rather than in the
+  // project-context module for one load-bearing reason: `snapshotVersion` must
+  // read the current attachment set to write it into the version snapshot, and
+  // putting the table anywhere else makes the owning repository and
+  // project-context mutually dependent.
+
+  /** Attachments for an agent, optionally narrowed to one repo. Editor-facing. */
+  async contextDocsForAgent(agentId: string, repoId?: string): Promise<ContextDocLinkRow[]> {
+    return this.db
+      .select({
+        repoId: t.agentContextDocs.repoId,
+        path: t.agentContextDocs.path,
+        order: t.agentContextDocs.order,
+        enabled: t.agentContextDocs.enabled,
+      })
+      .from(t.agentContextDocs)
+      .where(
+        repoId === undefined
+          ? eq(t.agentContextDocs.agentId, agentId)
+          : and(eq(t.agentContextDocs.agentId, agentId), eq(t.agentContextDocs.repoId, repoId)),
+      )
+      .orderBy(asc(t.agentContextDocs.repoId), asc(t.agentContextDocs.order));
+  }
+
+  /**
+   * The documents that shape this agent's prompt FOR ONE REPO, in attachment
+   * order. A run is always for exactly one repository, so it never has to choose
+   * between repos (AC-27). The only query the review pipeline uses.
+   */
+  async enabledContextDocsForPrompt(
+    agentId: string,
+    repoId: string,
+  ): Promise<{ path: string; order: number }[]> {
+    return this.db
+      .select({ path: t.agentContextDocs.path, order: t.agentContextDocs.order })
+      .from(t.agentContextDocs)
+      .where(
+        and(
+          eq(t.agentContextDocs.agentId, agentId),
+          eq(t.agentContextDocs.repoId, repoId),
+          eq(t.agentContextDocs.enabled, true),
+        ),
+      )
+      .orderBy(asc(t.agentContextDocs.order));
+  }
+
+  /** Every enabled attachment as a `ContextDocRef`, for the version snapshot. */
+  private async enabledContextDocRefs(
+    agentId: string,
+  ): Promise<{ repo_id: string; path: string }[]> {
+    const rows = await this.db
+      .select({ repoId: t.agentContextDocs.repoId, path: t.agentContextDocs.path })
+      .from(t.agentContextDocs)
+      .where(and(eq(t.agentContextDocs.agentId, agentId), eq(t.agentContextDocs.enabled, true)))
+      .orderBy(asc(t.agentContextDocs.repoId), asc(t.agentContextDocs.order));
+    return rows.map((r) => ({ repo_id: r.repoId, path: r.path }));
+  }
+
+  /**
+   * Replace the attachment set for ONE (agent, repo) pair, order = index.
+   *
+   * Scoped to `(agentId, repoId)` and never across repos: the Context tab's repo
+   * picker moves between repositories, and a delete that spanned them would wipe
+   * the other repository's documents on every switch (AC-26, AC-27). Unticking a
+   * document simply leaves it out of `docs` (AC-24).
+   *
+   * NOTE: delete-then-insert without a transaction — this repo runs nothing in
+   * one (see server/INSIGHTS.md), so a crash between the two statements leaves
+   * THAT repo's set empty rather than half-applied.
+   */
+  async setContextDocs(
+    agentId: string,
+    repoId: string,
+    docs: ContextDocLinkInput[],
+  ): Promise<void> {
+    await this.db
+      .delete(t.agentContextDocs)
+      .where(and(eq(t.agentContextDocs.agentId, agentId), eq(t.agentContextDocs.repoId, repoId)));
+    if (docs.length > 0) {
+      await this.db.insert(t.agentContextDocs).values(
+        docs.map((d, i) => ({
+          agentId,
+          repoId,
+          path: d.path,
+          order: i,
+          enabled: d.enabled ?? true,
+        })),
+      );
+    }
+    await this.bumpForContextChange(agentId);
+  }
+
+  /**
+   * Bump the agent's version and snapshot it, because its attached documents
+   * changed — the same rule `bumpForSkillChange` applies to skill links, and for
+   * the same reason: two runs of "v3" must not have been told to read different
+   * documents (AC-30).
+   */
+  private async bumpForContextChange(agentId: string): Promise<void> {
+    const [row] = await this.db
+      .update(t.agents)
+      .set({ version: sql`${t.agents.version} + 1` })
+      .where(eq(t.agents.id, agentId))
+      .returning();
+    if (row) await this.snapshotVersion(row, row.version);
   }
 }

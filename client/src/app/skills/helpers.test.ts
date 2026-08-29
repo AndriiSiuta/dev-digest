@@ -85,6 +85,7 @@ describe("versionDeltas", () => {
     skill_id: "s1",
     version: v,
     body,
+    context_docs: [],
     created_at: "2026-08-05T10:00:00.000Z",
   });
 

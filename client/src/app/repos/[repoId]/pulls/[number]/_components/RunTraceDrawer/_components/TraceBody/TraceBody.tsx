@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
-import { formatSeconds, formatTokens } from "../../helpers";
+import { formatSeconds, formatTokens, normalizeSpecsRead } from "../../helpers";
 import { formatCostUsd } from "@/lib/format";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
@@ -19,6 +19,9 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  // Accepts both the current `{path, tokens, status}` shape and the legacy
+  // `string[]` that historical rows still carry — see `normalizeSpecsRead`.
+  const specsRead = normalizeSpecsRead(trace.specs_read);
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -38,12 +41,27 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           </Row>
           <Row label={t("trace.config.specsRead")}>
             <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
+              {specsRead.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
+                specsRead.map((sp) => (
+                  <span key={sp.path} style={s.specsWrap}>
+                    <span
+                      className="mono"
+                      style={sp.status === "included" ? s.spec : s.specSkipped}
+                      title={sp.path}
+                    >
+                      {sp.path}
+                    </span>
+                    {sp.status === "included" ? (
+                      sp.tokens > 0 && (
+                        <span style={s.specStatus}>
+                          {t("trace.config.specTokens", { tokens: sp.tokens })}
+                        </span>
+                      )
+                    ) : (
+                      <span style={s.specStatus}>{t(`trace.config.spec.${sp.status}`)}</span>
+                    )}
                   </span>
                 ))
               )}

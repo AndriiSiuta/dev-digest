@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
+  AgentContextDocLink,
   AgentSkillDetail,
   AgentSkillLink,
   AgentVersion,
@@ -9,7 +10,11 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { AgentsRepository, type SkillLinkInput } from './repository.js';
+import {
+  AgentsRepository,
+  type ContextDocLinkInput,
+  type SkillLinkInput,
+} from './repository.js';
 import { toAgentDto, toAgentSkillDetail, toAgentVersionDto } from './helpers.js';
 
 /**
@@ -186,6 +191,45 @@ export class AgentsService {
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder, enabled ?? true);
     return this.skillLinks(agentId);
+  }
+
+  // ---- project-context attachments ---------------------------------------
+
+  /** An agent's attached documents, optionally narrowed to one repository. */
+  async contextDocs(
+    workspaceId: string,
+    agentId: string,
+    repoId?: string,
+  ): Promise<AgentContextDocLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    const rows = await this.repo.contextDocsForAgent(agentId, repoId);
+    return rows.map((r) => ({
+      agent_id: agentId,
+      repo_id: r.repoId,
+      path: r.path,
+      order: r.order,
+      enabled: r.enabled,
+    }));
+  }
+
+  /**
+   * Replace the attachment set for ONE repository (AC-07, AC-24, AC-26). The
+   * repository is resolved inside the workspace first, so an agent cannot be
+   * attached to a repo belonging to another tenant (AC-NF-03).
+   */
+  async setContextDocs(
+    workspaceId: string,
+    agentId: string,
+    repoId: string,
+    docs: ContextDocLinkInput[],
+  ): Promise<AgentContextDocLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    const repo = await this.container.reposRepo.getById(workspaceId, repoId);
+    if (!repo) return undefined;
+    await this.repo.setContextDocs(agentId, repoId, docs);
+    return this.contextDocs(workspaceId, agentId);
   }
 
   /**

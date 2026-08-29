@@ -16,7 +16,6 @@ import type {
   PrMeta,
   PrDetail,
   SpecFile,
-  IndexStatus,
 } from "../types";
 
 // ---- Settings (F1: GET/PUT /settings, POST /settings/test-connection) ----
@@ -119,19 +118,15 @@ export function usePullDetail(prId: string | number | null | undefined) {
   });
 }
 
-// ---- Project Context (A3 contract; safe to call once API exposes it) ----
+// ---- Project Context ------------------------------------------------------
+// `useReindexContext` lived here: it called `POST /repos/:id/context/reindex`,
+// an endpoint that never existed, and named the re-indexable model the spec
+// explicitly rules out (AC-33). Removed. Project context is discovered per
+// repository and attached by hand — see `lib/hooks/project-context.ts`.
 export function useContextFiles(repoId: string | null | undefined) {
   return useQuery({
     queryKey: ["context", repoId],
     queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
     enabled: !!repoId,
-  });
-}
-
-export function useReindexContext() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (repoId: string) => api.post<IndexStatus>(`/repos/${repoId}/context/reindex`),
-    onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: ["context", repoId] }),
   });
 }

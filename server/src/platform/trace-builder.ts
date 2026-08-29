@@ -4,6 +4,7 @@ import type {
   RunLogLine,
   RunStats,
   RunTrace,
+  SpecRead,
   ToolCall,
 } from '@devdigest/shared';
 import { RunTrace as RunTraceSchema } from '@devdigest/shared';
@@ -30,7 +31,7 @@ export interface BuildTraceInput {
   toolCalls: ToolCall[];
   rawOutput: string;
   memoryPulled: MemoryPulled[];
-  specsRead: string[];
+  specsRead: SpecRead[];
   log: RunLogLine[];
 }
 

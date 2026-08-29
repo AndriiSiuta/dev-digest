@@ -15,6 +15,11 @@ import {
   Settings,
   Repo,
   PrDetail,
+  ProjectContextDoc,
+  AgentContextDocLink,
+  SetContextDocsBody,
+  AgentVersionConfig,
+  SkillVersion,
 } from '@devdigest/shared';
 
 /**
@@ -208,10 +213,66 @@ describe('AI contracts parse fixtures', () => {
       tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
       raw_output: '{}',
       memory_pulled: [{ pr: 288, text: 'verified via stripe-signature' }],
-      specs_read: ['specs/security-baseline.md'],
+      specs_read: [{ path: 'specs/security-baseline.md', tokens: 412, status: 'included' }],
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    expect(trace.specs_read[0]).toEqual({
+      path: 'specs/security-baseline.md',
+      tokens: 412,
+      status: 'included',
+    });
+  });
+});
+
+describe('project-context contracts', () => {
+  it('ProjectContextDoc carries a path, a derived type and a byte size — no body', () => {
+    const doc = ProjectContextDoc.parse({ path: 'docs/api/routes.md', type: 'doc', bytes: 2048 });
+    expect(doc).toEqual({ path: 'docs/api/routes.md', type: 'doc', bytes: 2048 });
+    // The type is derived from the search root, so a custom root parses too.
+    expect(ProjectContextDoc.parse({ path: 'adr/0001.md', type: 'adr', bytes: 10 }).type).toBe('adr');
+  });
+
+  it('AgentContextDocLink is the (agent, repo, path) triple plus the per-link switch', () => {
+    const link = AgentContextDocLink.parse({
+      agent_id: 'a1',
+      repo_id: 'r1',
+      path: 'specs/api.md',
+      order: 0,
+      enabled: true,
+    });
+    expect(link.repo_id).toBe('r1');
+  });
+
+  it('SetContextDocsBody replaces the set for ONE repo; enabled is optional', () => {
+    const body = SetContextDocsBody.parse({
+      repo_id: 'r1',
+      docs: [{ path: 'specs/api.md' }, { path: 'docs/db.md', enabled: false }],
+    });
+    expect(body.docs).toHaveLength(2);
+    expect(body.docs[1]?.enabled).toBe(false);
+    expect(() => SetContextDocsBody.parse({ docs: [] })).toThrow();
+  });
+
+  it('context_docs defaults to [] so pre-feature snapshots still parse', () => {
+    const cfg = AgentVersionConfig.parse({
+      provider: 'openai',
+      model: 'gpt-4.1',
+      system_prompt: 'p',
+      strategy: 'single-pass',
+      ci_fail_on: 'critical',
+      repo_intel: true,
+      skills: [],
+    });
+    expect(cfg.context_docs).toEqual([]);
+
+    const version = SkillVersion.parse({
+      skill_id: 's1',
+      version: 1,
+      body: 'b',
+      created_at: '2026-08-28T00:00:00.000Z',
+    });
+    expect(version.context_docs).toEqual([]);
   });
 });
 

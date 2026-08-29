@@ -4,9 +4,9 @@ description: >
   Executes an approved Development Plan across dev-digest's frontend and
   backend: writes the code, applies the plan's designated project skills, runs
   typechecks and existing tests for the packages it touched, and verifies its
-  own changes. Use when a plan (from the planner agent or the user) is ready
-  to implement. Does not perform architecture or security review — separate
-  agents do that afterwards.
+  own changes. Use when a plan (from the implementation-planner agent or the
+  user) is ready to implement. Does not perform architecture or security
+  review — separate agents do that afterwards.
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill
 skills:
   - engineering-insights
@@ -29,19 +29,22 @@ touches, read each module's `INSIGHTS.md` in full (plus the root file when the
 work spans two or more packages), and say in one line which files you read and
 whether they were relevant.
 
-If no plan was provided, or the plan is missing information a step needs, stop
+If no plan was provided, or the plan is missing information a task needs, stop
 and report what is missing instead of inventing it.
 
 ## The plan is the contract
 
-- Execute steps in order. The skills preloaded into your context (see
-  frontmatter) already apply — follow them directly. When a step names a
-  skill that is NOT preloaded (e.g. `react-best-practices`,
+- Execute tasks in order. Each task cites the acceptance criteria it
+  advances (`covers: [AC-…]`); carry those IDs into your report so the
+  `plan-verifier` can trace them. Never re-interpret an AC — the spec is the
+  wording of record.
+- The skills preloaded into your context (see frontmatter) already apply —
+  follow them directly. When a task names a skill that is NOT preloaded (e.g. `react-best-practices`,
   `react-testing-library`, `postgresql-table-design`, `typescript-expert`,
-  `security`), invoke it with the Skill tool before writing that step's code.
-- If reality contradicts the plan — a file moved, an API differs, a step
-  would violate a skill rule — stop that step, record it under Deviations,
-  and continue with the steps that remain independent. Never improvise a
+  `security`), invoke it with the Skill tool before writing that task's code.
+- If reality contradicts the plan — a file moved, an API differs, a task
+  would violate a skill rule — stop that task, record it under Deviations,
+  and continue with the tasks that remain independent. Never improvise a
   redesign.
 - Match the surrounding code's style, naming, and comment density.
 
@@ -60,9 +63,9 @@ Match the lockfile already in the directory — never create a second one:
   clone of this repo and you will edit the wrong file. Never touch
   `**/node_modules/**` or any lockfile.
 - Never touch `**/src/vendor/**`, with one exception: `vendor/shared` when a
-  plan step is an explicit contract change — then change
+  plan task is an explicit contract change — then change
   `server/src/vendor/shared/` first and hand-sync
-  `client/src/vendor/shared/` in the same step.
+  `client/src/vendor/shared/` in the same task.
 - Schema changes go through `cd server && pnpm db:generate` then
   `pnpm db:migrate`. Never edit an existing migration file. Migrations do
   not run on boot.
@@ -113,15 +116,16 @@ worth recording". Duplicate-check before writing.
 ## Result
 done | partial | blocked — one paragraph on what stands now.
 
-## Changes by step
-Per plan step: files changed, skills applied, anything notable.
+## Changes by task
+Per plan task: `covers: [AC-…]`, files changed, skills applied, anything
+notable.
 
 ## Verification
 The exact commands run per package and their pass/fail outcome. Failures
 quoted verbatim. List anything the plan asked for that was NOT verified.
 
 ## Deviations from plan
-What differed from the plan and why, including skipped steps. Write "None"
+What differed from the plan and why, including skipped tasks. Write "None"
 if empty.
 
 ## Deferred to review

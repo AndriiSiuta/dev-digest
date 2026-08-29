@@ -34,6 +34,13 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import type { IntentFacade } from '../modules/intent/types.js';
 import { IntentService } from '../modules/intent/service.js';
+import type {
+  ProjectContextDocs,
+  ProjectContextFacade,
+} from '../modules/project-context/types.js';
+import { ProjectContextService } from '../modules/project-context/service.js';
+import { FsProjectContextDocs } from '../adapters/projectcontext/fs.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -57,6 +64,10 @@ export interface ContainerOverrides {
   repoIntel?: RepoIntel;
   /** intent facade — tests inject mock IntentFacade implementations. */
   intent?: IntentFacade;
+  /** project-context document discovery/read — tests inject MockProjectContextDocs. */
+  projectContextDocs?: ProjectContextDocs;
+  /** project-context facade — the reviews run-executor resolves through this. */
+  projectContext?: ProjectContextFacade;
   /** reviews facade — tests inject mock ReviewRunner implementations. */
   reviewRunner?: ReviewRunner;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
@@ -82,12 +93,15 @@ export class Container {
   // runs). Constructed here, in the composition root, so consuming modules use
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
+  private _skillsRepo?: SkillsRepository;
   private _reviewRepo?: ReviewRepository;
   private _reposRepo?: RepoRepository;
   private _pullsRepo?: PullsRepository;
   private _conventionsRepo?: ConventionsRepository;
   private _repoIntel?: RepoIntel;
   private _intent?: IntentFacade;
+  private _projectContextDocs?: ProjectContextDocs;
+  private _projectContext?: ProjectContextFacade;
   private _reviewRunner?: ReviewRunner;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -110,6 +124,14 @@ export class Container {
 
   get agentsRepo(): AgentsRepository {
     return (this._agentsRepo ??= new AgentsRepository(this.db));
+  }
+
+  /**
+   * `skills` + `skill_versions` + `skill_context_docs`. Shared: the skills
+   * module owns them, project-context resolution reads them on the run path.
+   */
+  get skillsRepo(): SkillsRepository {
+    return (this._skillsRepo ??= new SkillsRepository(this.db));
   }
 
   get reviewRepo(): ReviewRepository {
@@ -167,6 +189,28 @@ export class Container {
     if (this.overrides.reviewRunner) return this.overrides.reviewRunner;
     this._reviewRunner ??= new ReviewService(this);
     return this._reviewRunner;
+  }
+
+  /**
+   * Project-context document discovery over the repository checkout. The clone
+   * location comes from the git client so it stays defined in one place.
+   */
+  get projectContextDocs(): ProjectContextDocs {
+    if (this.overrides.projectContextDocs) return this.overrides.projectContextDocs;
+    this._projectContextDocs ??= new FsProjectContextDocs((repo) => this.git.clonePathFor(repo));
+    return this._projectContextDocs;
+  }
+
+  /**
+   * The project-context facade. The review run-executor resolves an agent's
+   * attached documents through this interface rather than importing the
+   * project-context module's service; tests inject a mock via
+   * `ContainerOverrides.projectContext`.
+   */
+  get projectContext(): ProjectContextFacade {
+    if (this.overrides.projectContext) return this.overrides.projectContext;
+    this._projectContext ??= new ProjectContextService(this);
+    return this._projectContext;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

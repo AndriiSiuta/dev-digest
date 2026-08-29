@@ -95,4 +95,35 @@ export class RepoRepository {
       .returning({ id: t.repos.id });
     return deleted.length > 0;
   }
+
+  // ---- project-context search roots (AC-29) --------------------------------
+
+  /**
+   * The repository's own search roots, or `null` when it has none — which is
+   * exactly the condition under which the workspace default applies. `null` and
+   * `[]` are different statements: "no setting" versus "scan nothing".
+   * Returns `null` for a repo outside the workspace, so a caller cannot probe
+   * another tenant's configuration.
+   */
+  async getSearchRoots(workspaceId: string, repoId: string): Promise<string[] | null> {
+    const [row] = await this.db
+      .select({ roots: t.repos.contextSearchRoots })
+      .from(t.repos)
+      .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, repoId)));
+    return row?.roots ?? null;
+  }
+
+  /** Set (or clear, with `null`) a repository's search roots. Workspace-scoped. */
+  async setSearchRoots(
+    workspaceId: string,
+    repoId: string,
+    roots: string[] | null,
+  ): Promise<boolean> {
+    const updated = await this.db
+      .update(t.repos)
+      .set({ contextSearchRoots: roots })
+      .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, repoId)))
+      .returning({ id: t.repos.id });
+    return updated.length > 0;
+  }
 }

@@ -11,6 +11,7 @@ import type {
   GitCommit,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
+import { assertWithinCheckout } from '../projectcontext/paths.js';
 
 /**
  * Depth fetched by `sync()`. Deeper than the shallow clone (CLONE_DEPTH=1) so the
@@ -127,7 +128,13 @@ export class SimpleGitClient implements GitClient {
   }
 
   async readFile(repo: RepoRef, path: string): Promise<string> {
-    return readFile(join(this.clonePathFor(repo), path), 'utf8');
+    // Containment, which this primitive had none of: `join(clonePath, path)`
+    // with a `../`-bearing path reads anything on the host. Its caller passes
+    // doc paths lifted out of a PR body (`modules/intent/service.ts`), so the
+    // paths are attacker-influenced; project context now persists user-chosen
+    // paths and replays them every run. Legitimate repo-relative paths are
+    // unaffected — a traversal attempt throws instead of reading.
+    return readFile(assertWithinCheckout(this.clonePathFor(repo), path), 'utf8');
   }
 }
 

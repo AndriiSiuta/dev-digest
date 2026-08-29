@@ -39,6 +39,7 @@ export const EDITOR_TABS = [
   { key: "evals", labelKey: "editor.tabs.evals" },
   { key: "stats", labelKey: "editor.tabs.stats" },
   { key: "versions", labelKey: "editor.tabs.versions" },
+  { key: "context", labelKey: "editor.tabs.context" },
 ] as const;
 
 export const VALID_TABS: readonly string[] = EDITOR_TABS.map((t) => t.key);

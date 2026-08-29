@@ -13,6 +13,7 @@ import { PreviewTab } from "./_components/PreviewTab";
 import { EvalsTab } from "./_components/EvalsTab";
 import { StatsTab } from "./_components/StatsTab";
 import { VersionsTab } from "./_components/VersionsTab";
+import { ContextSection } from "./_components/ContextSection";
 
 export function SkillEditor({
   skill,
@@ -50,6 +51,7 @@ export function SkillEditor({
         {tab === "stats" && <StatsTab skill={skill} />}
         {tab === "versions" && <VersionsTab skill={skill} />}
         {tab === "config" && <ConfigTab skill={skill} />}
+        {tab === "context" && <ContextSection skill={skill} />}
       </div>
     </div>
   );

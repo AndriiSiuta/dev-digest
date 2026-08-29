@@ -54,6 +54,20 @@ export const PromptAssembly = z.object({
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
 
+/**
+ * One project-context document considered for a run. `included` reached the
+ * prompt; `unreachable` was attached but could not be read from the checkout;
+ * `omitted` was dropped whole because the token ceiling had been crossed.
+ * `tokens` is the tiktoken-backed count, and is 0 for anything not included.
+ */
+export const SpecRead = z.object({
+  /** Repo-relative path of the document. */
+  path: z.string(),
+  tokens: z.number().int(),
+  status: z.enum(['included', 'unreachable', 'omitted']),
+});
+export type SpecRead = z.infer<typeof SpecRead>;
+
 export const MemoryPulled = z.object({
   pr: z.number().int().nullish(),
   text: z.string(),
@@ -90,7 +104,7 @@ export const RunTrace = z.object({
   tool_calls: z.array(ToolCall),
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
-  specs_read: z.array(z.string()),
+  specs_read: z.array(SpecRead),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
