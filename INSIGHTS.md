@@ -13,6 +13,36 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Works
 
+- **2026-08-29** — Sending `plan.md` to a model of a **different family** before
+  any code is written pays for itself, but not in the way you would expect: of
+  20 findings on the PR Brief plan, **none** challenged the feature's shape, the
+  `@devdigest/shared` contract, the cache key or the architecture — and 8 of the
+  14 accepted were **tests that would have passed green without proving their
+  AC**. The three sharpest: an AC-30 test that could not distinguish "the server
+  recomputed the risk level" from "the model happened to agree" (fix: stub the
+  model at `'none'` while a `high` risk survives); a grounding universe taken
+  from Smart Diff's output, which is a strict subset of the changed files, so a
+  risk citing a real-but-unclassified file would have been dropped as invented;
+  and a `getBrief` projection omitting `head_sha`, which would make the cache
+  never hit and charge for a model call on every request **with no type error**.
+  Same-family review is weakest exactly there, because the reviewer shares the
+  author's idea of what "tested" means. Budget ~$0.06 and one round trip.
+  Evidence: `plans/04-pr-brief.review-note.md`, and the Revision log in
+  `plans/04-pr-brief.plan.md`.
+
+- **2026-08-29** — …but **verify the outside reviewer's factual claims before
+  applying any of them**: 3 of those 20 findings were wrong about this codebase
+  and would have caused damage. The worst asserted that the plan "invents
+  `reviewRepo.getIntent`, duplicating the intent module" and prescribed adding a
+  facade method — when `IntentService.get` is itself exactly
+  `return this.container.reviewRepo.getIntent(prId)`
+  (`server/src/modules/intent/service.ts:46`). The other two claimed
+  `container.projectContextDocs` was absent (`platform/container.ts:198`) and
+  that `resolveFeatureModel`'s signature might not match
+  (`modules/settings/feature-models.ts:51-55`). A cross-family reviewer has no
+  repo access — treat its architecture claims as hypotheses and its test-rigour
+  claims as findings.
+
 ## What Doesn't Work
 
 - **2026-08-28** — `implementation-planner` is read-only by design, so a
@@ -62,6 +92,18 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 ## Codebase Patterns
 
 - **2026-08-05** — Pre-staged-for-a-lesson goes well beyond the empty tables `server/INSIGHTS.md` lists: for skills, the DB tables, the `@devdigest/shared` contracts, the `## Skills / rules` prompt section, the trace-drawer block + its colour token, and the entire `messages/en/skills.json` i18n namespace all ship in the starter with no module and no screen behind them — search for existing scaffolding before writing any of it. Evidence: `server/src/vendor/shared/contracts/knowledge.ts:114-141`, `reviewer-core/src/prompt.ts:109`, `client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/constants.ts:16`, `client/messages/en/skills.json`.
+  **Refined 2026-08-29 — the pre-staged i18n namespace is the dangerous half,
+  and it has now misled three features running.** `skills.json` described a
+  trust model the engine lacked (entry above); `context.json` described a
+  reindex/chunks surface Project Context deliberately did not build
+  (`specs/03-project-context-folder.md` AC-33); `brief.json` described the *old*
+  four-block composition plus a git-blame `why.*` sub-namespace belonging to an
+  unrelated feature. Contracts and tables that are pre-staged merely sit unused,
+  but pre-staged **copy** reads as a requirement and quietly widens scope. Treat
+  a `messages/en/*.json` namespace with **zero usages in `client/src`** as a
+  proposal from a past author, not a spec: diff it against what you are actually
+  building and rewrite it, and expect to delete keys. Check with
+  `grep -rl "useTranslations(\"<ns>\")" client/src`.
 
   - **2026-08-05** — Conventions was staged even further than skills — table, `ConventionCandidate` contract, `FEATURE_MODELS.conventions`, `repoIntel.getConventionSamples()`, the whole `messages/en/conventions.json` namespace, `activeKeyFor("/conventions")` AND the mock adapter's schema names all shipped with no module, so the build was assembly, not authoring. Evidence: `server/src/modules/repo-intel/service.ts:630`, `client/src/components/app-shell/helpers.ts:31`, `docs/specs/conventions.md` §2.
 
@@ -111,6 +153,21 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `skills-lock.json` disagrees with `.claude/skills/` in both directions, so it cannot be read as an index of available skills; read the directory. Evidence: lock-only — `architecture-patterns`, `github-workflow-automation`; disk-only — `mermaid-diagram`, `react-best-practices`, `react-testing-library`, `security`.
 
 ## Recurring Errors & Fixes
+
+- **2026-08-29** — A system LLM feature failing with a 500 wrapping
+  `401 Incorrect API key provided` is usually the **registry default provider**,
+  not the feature. `FEATURE_MODELS` defaults `risk_brief` to `openai`/`gpt-4.1`,
+  and this machine's `~/.devdigest/secrets.json` holds an `OPENAI_API_KEY`
+  beginning `v1-…`, which is not OpenAI's `sk-…` format and is rejected. The fix
+  is a **workspace Settings override**, never a contract edit — the same
+  mechanism `conventions` already uses:
+  `curl -X PUT localhost:3001/settings -H 'content-type: application/json' -d
+  '{"feature_models":{"risk_brief":{"provider":"openrouter","model":"…"}}}'`.
+  Check key shapes without printing them:
+  `python3 -c "import json,os;print({k:v[:8] for k,v in
+  json.load(open(os.path.expanduser('~/.devdigest/secrets.json'))).items()})"`.
+  Evidence: `server/src/modules/settings/feature-models.ts:51-56`,
+  `server/src/vendor/shared/contracts/platform.ts:58-64`.
 
 - **2026-08-29** — A dev API answering `{"message":"Route GET:/pulls/:id/brief
   not found","error":"Not Found","statusCode":404}` (Fastify's DEFAULT 404, not
