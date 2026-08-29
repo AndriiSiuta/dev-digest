@@ -1,1 +1,1 @@
-export { SmartDiffViewer } from "./SmartDiffViewer";
+export { SmartDiffViewer, type DiffFocus } from "./SmartDiffViewer";

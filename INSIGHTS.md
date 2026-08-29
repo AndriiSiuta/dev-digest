@@ -112,6 +112,15 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-08-29** — A dev API answering `{"message":"Route GET:/pulls/:id/brief
+  not found","error":"Not Found","statusCode":404}` (Fastify's DEFAULT 404, not
+  the app's `{"error":{"code":"not_found",...}}` envelope) means the running
+  process predates the module's registration in `src/modules/index.ts` — not a
+  registration bug. `scripts/dev.sh` runs `pnpm dev` = `tsx watch src/server.ts`,
+  but a stack started before a new module exists still needs a restart if it was
+  launched as plain `tsx src/server.ts` (check `ps aux | grep server.ts`: the
+  watch parent is absent). Read the 404's SHAPE before touching the code.
+
 ## Session Notes
 
 - **2026-07-29** — Wrote per-module `CLAUDE.md` files and swept the repo for drift while doing it; every entry here and in the per-module files came from that sweep. The `engineering-insights` skill was built in the same session.

@@ -4,7 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel, Button } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { SmartDiffViewer } from "../SmartDiffViewer";
+import { SmartDiffViewer, type DiffFocus } from "../SmartDiffViewer";
 import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
 import type { PrFile } from "@devdigest/shared";
@@ -15,9 +15,12 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** A file (and optionally a line) to open on arrival — the brief's
+   *  review-focus deep link, carried in `?focus=`/`?line=`. */
+  focus?: DiffFocus | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, focus }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -83,7 +86,7 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
         Files changed · {filesCount} files
       </SectionLabel>
       {order === "smart" ? (
-        <SmartDiffViewer prId={prId} files={files} commenting={commenting} />
+        <SmartDiffViewer prId={prId} files={files} commenting={commenting} focus={focus} />
       ) : (
         <DiffViewer files={files} commenting={commenting} />
       )}

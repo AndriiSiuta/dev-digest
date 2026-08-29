@@ -36,6 +36,7 @@ export function FileCard({
   commenting,
   defaultOpen,
   findings,
+  focus,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
@@ -43,6 +44,11 @@ export function FileCard({
   defaultOpen?: boolean;
   /** Smart Diff findings overlaid on this file, if any. */
   findings?: SmartDiffFinding[];
+  /** This file is the target of a deep link (the brief's review focus): open
+   *  it and, with a line, scroll there. `open` below is state INITIALIZED from
+   *  `defaultOpen`, so a changed `defaultOpen` alone can never reopen a
+   *  collapsed card — the effect is what does it. */
+  focus?: { line: number | null } | null;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
@@ -63,6 +69,17 @@ export function FileCard({
     }
     return map;
   }, [findings]);
+
+  // Deep-link arrival. Depends on the PRIMITIVES, not on the `focus` object:
+  // the parent rebuilds that object every render, and the scroll effect below
+  // clears `jumpLine`, so an object dependency would re-scroll forever.
+  const focused = focus != null;
+  const focusLine = focus?.line ?? null;
+  React.useEffect(() => {
+    if (!focused) return;
+    setOpen(true);
+    if (focusLine != null) setJumpLine(focusLine);
+  }, [focused, focusLine]);
 
   React.useEffect(() => {
     if (jumpLine == null || !open) return;

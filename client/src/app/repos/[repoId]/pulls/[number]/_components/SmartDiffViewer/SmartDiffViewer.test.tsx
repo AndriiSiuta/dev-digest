@@ -8,6 +8,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { PrFile, SmartDiffResponse } from "@/lib/types";
+import type { DiffFocus } from "./SmartDiffViewer";
 import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 import shellMessages from "../../../../../../../../messages/en/shell.json";
 
@@ -42,6 +43,12 @@ const FILES: PrFile[] = [
     additions: 400,
     deletions: 0,
     patch: "@@ -1,1 +1,2 @@\n a\n+const lockLine = 1;",
+  },
+  {
+    path: "package.json",
+    additions: 300,
+    deletions: 0,
+    patch: "@@ -1,1 +1,2 @@\n b\n+const pkgLine = 1;",
   },
 ];
 
@@ -81,13 +88,13 @@ function response(over: Partial<SmartDiffResponse> = {}): SmartDiffResponse {
   };
 }
 
-function renderViewer() {
+function renderViewer(focus?: DiffFocus | null) {
   return render(
     <NextIntlClientProvider
       locale="en"
       messages={{ prReview: prReviewMessages, shell: shellMessages }}
     >
-      <SmartDiffViewer prId="pr1" files={FILES} />
+      <SmartDiffViewer prId="pr1" files={FILES} focus={focus} />
     </NextIntlClientProvider>
   );
 }
@@ -191,5 +198,71 @@ describe("SmartDiffViewer — error state", () => {
     expect(screen.getByText("Couldn't load Smart Diff")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Retry"));
     expect(refetch).toHaveBeenCalled();
+  });
+});
+
+describe("SmartDiffViewer — deep-link focus", () => {
+  /** Two boilerplate files: the group is the one that always starts with its
+   *  files collapsed, so it is the case AC-46 names. */
+  function twoBoilerplateFiles(): SmartDiffResponse {
+    return response({
+      groups: [
+        { role: "core", files: [] },
+        { role: "wiring", files: [] },
+        {
+          role: "boilerplate",
+          files: [
+            {
+              path: "pnpm-lock.yaml",
+              pseudocode_summary: null,
+              additions: 400,
+              deletions: 0,
+              finding_lines: [],
+              findings: [],
+            },
+            {
+              path: "package.json",
+              pseudocode_summary: null,
+              additions: 300,
+              deletions: 0,
+              finding_lines: [],
+              findings: [],
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  it("expands the focused file in a collapsed group, leaving its siblings collapsed", () => {
+    mockState = { data: twoBoilerplateFiles(), isLoading: false, isError: false, refetch: vi.fn() };
+    renderViewer({ file: "pnpm-lock.yaml", line: 2 });
+
+    expect(screen.getByText("const lockLine = 1;")).toBeInTheDocument();
+    expect(screen.queryByText("const pkgLine = 1;")).not.toBeInTheDocument();
+  });
+
+  it("re-opens a whole group the reviewer had collapsed when the focus lands inside it", () => {
+    mockState = { data: twoBoilerplateFiles(), isLoading: false, isError: false, refetch: vi.fn() };
+    const { rerender } = renderViewer();
+
+    const boilerplateToggle = screen.getByRole("button", { name: /Boilerplate/ });
+    fireEvent.click(boilerplateToggle);
+    expect(boilerplateToggle).toHaveAttribute("aria-expanded", "false");
+
+    rerender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={{ prReview: prReviewMessages, shell: shellMessages }}
+      >
+        <SmartDiffViewer prId="pr1" files={FILES} focus={{ file: "pnpm-lock.yaml", line: 2 }} />
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByRole("button", { name: /Boilerplate/ })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByText("const lockLine = 1;")).toBeInTheDocument();
   });
 });
