@@ -34,6 +34,13 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import type { IntentFacade } from '../modules/intent/types.js';
 import { IntentService } from '../modules/intent/service.js';
+import type { BlastFacade } from '../modules/blast/types.js';
+import { BlastService } from '../modules/blast/service.js';
+import type { SmartDiffFacade } from '../modules/smart-diff/types.js';
+import { SmartDiffService } from '../modules/smart-diff/service.js';
+import type { BriefFacade } from '../modules/brief/types.js';
+import { BriefService } from '../modules/brief/service.js';
+import { BriefRepository } from '../modules/brief/repository.js';
 import type {
   ProjectContextDocs,
   ProjectContextFacade,
@@ -64,6 +71,19 @@ export interface ContainerOverrides {
   repoIntel?: RepoIntel;
   /** intent facade — tests inject mock IntentFacade implementations. */
   intent?: IntentFacade;
+  /** blast facade — tests inject mock BlastFacade implementations. */
+  blast?: BlastFacade;
+  /** smart-diff facade — tests inject mock SmartDiffFacade implementations. */
+  smartDiff?: SmartDiffFacade;
+  /** brief facade — tests inject mock BriefFacade implementations. */
+  brief?: BriefFacade;
+  /**
+   * `pr_brief` persistence — tests inject a recording double to assert on what
+   * was (or was not) written. Present because `briefRepo`'s own doc comment
+   * promises this seam, and AC-38's "no brief was persisted" assertion is the
+   * thing that needs it.
+   */
+  briefRepo?: BriefRepository;
   /** project-context document discovery/read — tests inject MockProjectContextDocs. */
   projectContextDocs?: ProjectContextDocs;
   /** project-context facade — the reviews run-executor resolves through this. */
@@ -100,6 +120,10 @@ export class Container {
   private _conventionsRepo?: ConventionsRepository;
   private _repoIntel?: RepoIntel;
   private _intent?: IntentFacade;
+  private _blast?: BlastFacade;
+  private _smartDiff?: SmartDiffFacade;
+  private _brief?: BriefFacade;
+  private _briefRepo?: BriefRepository;
   private _projectContextDocs?: ProjectContextDocs;
   private _projectContext?: ProjectContextFacade;
   private _reviewRunner?: ReviewRunner;
@@ -178,6 +202,51 @@ export class Container {
     if (this.overrides.intent) return this.overrides.intent;
     this._intent ??= new IntentService(this);
     return this._intent;
+  }
+
+  /**
+   * The blast facade. The route and any cross-module reader (the brief) resolve
+   * the Blast Radius panel through this interface rather than constructing the
+   * service; tests inject a mock via `ContainerOverrides.blast`.
+   */
+  get blast(): BlastFacade {
+    if (this.overrides.blast) return this.overrides.blast;
+    this._blast ??= new BlastService(this.pullsRepo, this.repoIntel);
+    return this._blast;
+  }
+
+  /**
+   * The smart-diff facade. Same shape as `blast`: the route and any
+   * cross-module reader go through this interface; tests inject a mock via
+   * `ContainerOverrides.smartDiff`.
+   */
+  get smartDiff(): SmartDiffFacade {
+    if (this.overrides.smartDiff) return this.overrides.smartDiff;
+    this._smartDiff ??= new SmartDiffService(this.pullsRepo, this.reviewRepo);
+    return this._smartDiff;
+  }
+
+  /**
+   * `pr_brief`. The brief module owns the table; the repository is constructed
+   * here rather than inside `BriefService` so the hermetic harness has a seam to
+   * inject a recording double through (an unwired one would make an
+   * "is the feature inert?" assertion pass vacuously — `server/INSIGHTS.md`,
+   * 2026-08-28).
+   */
+  get briefRepo(): BriefRepository {
+    if (this.overrides.briefRepo) return this.overrides.briefRepo;
+    return (this._briefRepo ??= new BriefRepository(this.db));
+  }
+
+  /**
+   * The brief facade. The routes and the AC-38 inertness test reach the PR
+   * Brief through this interface; tests inject a mock via
+   * `ContainerOverrides.brief`.
+   */
+  get brief(): BriefFacade {
+    if (this.overrides.brief) return this.overrides.brief;
+    this._brief ??= new BriefService(this);
+    return this._brief;
   }
 
   /**

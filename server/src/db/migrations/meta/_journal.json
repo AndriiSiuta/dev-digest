@@ -134,6 +134,13 @@
       "when": 1787906039947,
       "tag": "0018_confused_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788000342278,
+      "tag": "0019_parallel_angel",
+      "breakpoints": true
     }
   ]
 }

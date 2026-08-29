@@ -3,7 +3,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { SmartDiffResponse } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { SmartDiffService } from './service.js';
 
 /**
  * smart-diff module — reviewer-ordered "Files changed" view for a PR.
@@ -14,7 +13,7 @@ import { SmartDiffService } from './service.js';
  */
 export default async function smartDiffRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new SmartDiffService(app.container.pullsRepo, app.container.reviewRepo);
+  const service = app.container.smartDiff;
 
   app.get(
     '/pulls/:id/smart-diff',

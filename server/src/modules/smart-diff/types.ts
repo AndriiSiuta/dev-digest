@@ -1,3 +1,5 @@
+import type { SmartDiffResponse } from '@devdigest/shared';
+
 /**
  * smart-diff — narrow input shapes `helpers.ts` needs. Deliberately NOT the
  * Drizzle row types (`PrFileRow` / `FindingRow` / `ReviewRow`): keeping the
@@ -51,4 +53,14 @@ export interface SmartDiffPullsRepo {
 
 export interface SmartDiffReviewRepo {
   reviewsForPull(prId: string): Promise<SmartDiffReviewInput[]>;
+}
+
+/**
+ * smart-diff — the module's port (repoIntel/intent facade pattern). Callers
+ * outside the module read the classified diff through `container.smartDiff`
+ * rather than importing `service.ts` (`no-cross-module-internals`); tests
+ * inject a mock through `ContainerOverrides.smartDiff`.
+ */
+export interface SmartDiffFacade {
+  get(workspaceId: string, prId: string): Promise<SmartDiffResponse>;
 }

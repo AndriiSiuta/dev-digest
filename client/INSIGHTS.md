@@ -38,7 +38,16 @@ _None yet._
 
 ## What Doesn't Work
 
-_None yet._
+- **2026-08-29** — An effect that reacts to an OBJECT prop rebuilt by the
+  parent on every render, and whose body sets state another effect then
+  clears, loops forever. `FileCard`'s deep-link effect (`setOpen(true)` +
+  `setJumpLine(focus.line)`) with `[focus]` as its dependency re-fires after
+  the scroll effect resets `jumpLine` to `null`, so the file re-scrolls on
+  every render — `SmartDiffViewer` builds `focus={{ line: focus.line }}`
+  inline. Depend on the PRIMITIVES instead (`const focused = focus != null;
+  const focusLine = focus?.line ?? null;` → `[focused, focusLine]`); memoizing
+  in the parent would work too but leaves the trap armed for the next caller.
+  `src/components/diff-viewer/FileCard/FileCard.tsx:73-80`
 
 ## Codebase Patterns
 
@@ -115,6 +124,15 @@ _None yet._
     and take `.first()`, not `.last()`.
 
 ## Recurring Errors & Fixes
+
+- **2026-08-29** — Running `next build` in `client/` while `next dev` is
+  running on :3000 replaces the dev server's `.next/` with a production build,
+  and EVERY route then answers 500 (`_error.js` HTML) until dev is restarted —
+  touching a source file does not recover it, because `.next/static/development/*`
+  is gone. `pnpm build` is a legitimate gate (it is what catches a message
+  namespace changing shape), so run it knowingly and recover with
+  `rm -rf client/.next` then restart `next dev`. Symptom to recognise:
+  `.next/` holding `BUILD_ID` + `prerender-manifest.json` while dev is up.
 
 - **2026-08-04** — `fireEvent.mouseEnter` on a component whose hover-open
   logic uses `setTimeout` (e.g. an open delay to survive a mouse

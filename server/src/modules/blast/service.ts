@@ -2,7 +2,7 @@ import type { BlastPanel } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
 import { HISTORY_LIMIT } from './constants.js';
 import { buildBlastRadius, buildHistory } from './helpers.js';
-import type { BlastPullsRepo, BlastRepoIntel } from './types.js';
+import type { BlastFacade, BlastPullsRepo, BlastRepoIntel } from './types.js';
 
 /**
  * blast — composes the repo-intel blast radius with the prior-PR overlap
@@ -14,7 +14,7 @@ import type { BlastPullsRepo, BlastRepoIntel } from './types.js';
  * this module's own ports (`types.ts`), not `PullsRepository` / `RepoIntel`
  * directly — see the comment there.
  */
-export class BlastService {
+export class BlastService implements BlastFacade {
   constructor(
     private pullsRepo: BlastPullsRepo,
     private repoIntel: BlastRepoIntel,

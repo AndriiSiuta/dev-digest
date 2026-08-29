@@ -35,15 +35,23 @@ function computeDefaultOpen(role: SmartDiffRole, entry: SmartDiffFile): boolean 
   return entry.findings.length > 0 || entry.additions + entry.deletions <= AUTO_EXPAND_MAX_LINES;
 }
 
+/** A file (and optionally a new-side line) to open on arrival — the PR
+ *  brief's review-focus deep link, carried in the page's `?focus=`/`?line=`. */
+export interface DiffFocus {
+  file: string;
+  line: number | null;
+}
+
 interface SmartDiffViewerProps {
   prId: string | null;
   /** The PR's persisted files (unified-diff patch text) — Smart Diff carries
    *  the grouping/findings, not the patch, so the two are joined by path. */
   files: PrFile[];
   commenting?: DiffCommentApi;
+  focus?: DiffFocus | null;
 }
 
-export function SmartDiffViewer({ prId, files, commenting }: SmartDiffViewerProps) {
+export function SmartDiffViewer({ prId, files, commenting, focus }: SmartDiffViewerProps) {
   const t = useTranslations("prReview");
   const { data, isLoading, isError, refetch } = useSmartDiff(prId);
   // Whole-section collapse, independent of each file's own open/closed state
@@ -52,6 +60,23 @@ export function SmartDiffViewer({ prId, files, commenting }: SmartDiffViewerProp
   const [collapsedRoles, setCollapsedRoles] = React.useState<Set<SmartDiffRole>>(() => new Set());
 
   const filesByPath = React.useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
+
+  // Arriving on a deep link: if the focused file sits in a group the reviewer
+  // collapsed, re-open that group so the file can be seen at all. This
+  // synchronizes UI state with a navigation event — it is not derived state,
+  // because the collapse is the reviewer's own and only the link overrides it.
+  const focusPath = focus?.file ?? null;
+  React.useEffect(() => {
+    if (!focusPath || !data) return;
+    const group = data.groups.find((g) => g.files.some((f) => f.path === focusPath));
+    if (!group) return;
+    setCollapsedRoles((prev) => {
+      if (!prev.has(group.role)) return prev;
+      const next = new Set(prev);
+      next.delete(group.role);
+      return next;
+    });
+  }, [focusPath, data]);
 
   function toggleRole(role: SmartDiffRole) {
     setCollapsedRoles((prev) => {
@@ -148,6 +173,7 @@ export function SmartDiffViewer({ prId, files, commenting }: SmartDiffViewerProp
                       commenting={commenting}
                       defaultOpen={computeDefaultOpen(role, entry)}
                       findings={entry.findings}
+                      focus={focus && focus.file === entry.path ? { line: focus.line } : undefined}
                     />
                   );
                 })}

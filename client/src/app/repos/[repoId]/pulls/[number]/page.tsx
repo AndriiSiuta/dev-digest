@@ -59,12 +59,23 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
-  const setParam = (key: string, val: string | null) => {
+  // The brief's review-focus deep link: which file to open in the Files tab,
+  // and (optionally) which new-side line to scroll to.
+  const focusFile = search.get("focus");
+  const focusLine = search.get("line");
+  // ONE URLSearchParams, ONE router.replace. Writing keys one at a time
+  // replaces the URL immediately, so each subsequent call rebuilds from the
+  // same (now stale) `search` object and only the last key survives — which is
+  // exactly what a three-key navigation like the focus deep link needs.
+  const setParams = (entries: Record<string, string | null>) => {
     const sp = new URLSearchParams(search.toString());
-    if (val == null) sp.delete(key);
-    else sp.set(key, val);
+    for (const [key, val] of Object.entries(entries)) {
+      if (val == null) sp.delete(key);
+      else sp.set(key, val);
+    }
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
+  const setParam = (key: string, val: string | null) => setParams({ [key]: val });
   const setTab = (t: string) => setParam("tab", t);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
@@ -134,7 +145,16 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prId={prId} headSha={pr.head_sha} prBody={pr.body} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prId={prId}
+            headSha={pr.head_sha}
+            prBody={pr.body}
+            onFocusFile={(file, line) =>
+              setParams({ tab: "diff", focus: file, line: line != null ? String(line) : null })
+            }
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -171,6 +191,9 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            focus={
+              focusFile ? { file: focusFile, line: focusLine != null ? Number(focusLine) : null } : null
+            }
           />
         )}
       </div>

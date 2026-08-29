@@ -1,3 +1,4 @@
+import type { BlastPanel } from '@devdigest/shared';
 import type { BlastResult } from '../repo-intel/types.js';
 
 /**
@@ -42,4 +43,14 @@ export interface BlastPullsRepo {
 
 export interface BlastRepoIntel {
   getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult>;
+}
+
+/**
+ * blast — the module's port (repoIntel/intent facade pattern). Callers outside
+ * the module read the panel through `container.blast` rather than importing
+ * `service.ts` (`no-cross-module-internals`); tests inject a mock through
+ * `ContainerOverrides.blast`.
+ */
+export interface BlastFacade {
+  get(workspaceId: string, prId: string): Promise<BlastPanel>;
 }

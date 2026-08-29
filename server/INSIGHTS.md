@@ -94,6 +94,37 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-08-29** — A module whose `routes.ts` constructs its own service has
+  **no test seam at all**: `blast` and `smart-diff` both did
+  `new BlastService(app.container.pullsRepo, app.container.repoIntel)` inside
+  the plugin, so no `ContainerOverrides` entry could reach either and any
+  cross-module reader would have had to import the banned `service.ts`.
+  Promoting one is mechanical and costs no test change — declare
+  `XFacade { get(workspaceId, prId): Promise<…> }` in the module's own
+  `types.ts`, add `implements XFacade` to the service (the signature already
+  matched), add the `ContainerOverrides` slot plus a lazy getter that does the
+  exact wiring the route did, and the route becomes
+  `const service = app.container.blast;`. Routes reaching the container is legal
+  at the delivery ring. Evidence: `src/platform/container.ts` (`get blast()` /
+  `get smartDiff()`), `src/modules/blast/types.ts` (`BlastFacade`).
+
+- **2026-08-29** — The PR Brief's grounding gate treats an invented FILE
+  reference and an invented ENDPOINT reference differently, and the asymmetry is
+  deliberate rather than an oversight: a `file_ref` not among the PR's changed
+  files is REMOVED from the risk (AC-06 asks for exactly that), while a risk
+  citing an `endpoint_ref` absent from the blast summary is DROPPED WHOLE even
+  when all its `file_refs` are real — AC-08's stated outcome is that an invented
+  endpoint can neither survive into the stored brief nor keep a risk alive. Both
+  drops are recorded as `{target, ref, reason}`, and a dropped risk is
+  identified by its ORDINAL (`risk#0`), never its title, because those records
+  are logged and model prose must not be (AC-NF-02). Second non-obvious pairing
+  in the same module: the grounding universe is
+  `pullsRepo.getFiles(prId).map(f => f.path)`, NOT the Smart Diff path set —
+  Smart Diff legitimately omits binary/oversized/unparseable files, so
+  grounding against it would silently drop a risk citing a real changed file.
+  Evidence: `src/modules/brief/grounding.ts`, `src/modules/brief/service.ts`
+  (`generate`, step "gate first, level second"), `test/brief-grounding.test.ts`.
+
 - **2026-08-14** — `PromptAssembly` has NO diff field: `assemblePrompt` embeds
   the diff inside `user` as `## Diff to review` + `wrapUntrusted('diff', …)`, so
   every other section (`intent`/`skills`/`specs`/`callers`/`repo_map`/
@@ -156,6 +187,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-08-05** — `modules/settings/feature-models.ts` is the one cross-module import the arch rules allow into another module's folder — `no-cross-module-internals` bans only `service|repository|routes|helpers|run-executor|diff-loader|findings|status`, so a system LLM feature resolves its model with a direct `import { resolveFeatureModel } from '../settings/feature-models.js'` rather than through the container. Evidence: `.dependency-cruiser.cjs:29-40`, `src/modules/conventions/service.ts:11` (`pnpm arch` clean).
 
+- **2026-08-29** — A `MockProjectContextDocs` fixture gets its `type` from the
+  ROOT it was found under (`docTypeForRoot`), not from its own path or content,
+  so a document written as `{'foo/a.md': '…'}` is invisible to `list()` (no
+  configured root matches) and one under `docs/` is typed `doc`. Anything
+  filtering on `type === 'spec'` — the PR Brief's `selectSpecDocs` — therefore
+  needs its fixtures under `specs/`, and a mis-rooted fixture makes the test
+  pass with zero documents instead of failing. Evidence:
+  `src/adapters/mocks.ts` (`MockProjectContextDocs.list`),
+  `src/adapters/projectcontext/paths.ts`, `test/brief-service.test.ts`
+  ("document selection").
+
 - **2026-08-05** — `src/adapters/mocks.ts` doubles as a spec for unbuilt features: `MockLLMOptions.structuredBySchema` names the schemas of a conventions flow that did not exist (`'ConventionFileSelection'` then `'ConventionExtraction'`), so the intended two-step design — model RANKS a code-built candidate file list, then extracts — is discoverable there before any module is written. Evidence: `src/adapters/mocks.ts:46-52`.
 
 - **2026-08-05** — `src/adapters/` is not a pure IO ring: it also holds pure functions that services legitimately import, so an import-path rule of the form "services must not import `adapters/*`" would flag correct code — classify by whether the code leaves the process, not by folder. Evidence: `src/adapters/git/diff-parser.ts:14` (`parseUnifiedDiff`, imported by `src/modules/reviews/diff-loader.ts:3`), `src/adapters/codeindex/extract.ts:182` (`extractEndpoints`, imported by `src/modules/repo-intel/service.ts:22`).
@@ -173,6 +215,38 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
     (`fs.ts`, `mocks.ts` and `git/simple-git.ts` all reached the same helper).
 
 ## Tool & Library Notes
+
+- **2026-08-29** — A route's `config: { rateLimit: … }` is INERT in almost every
+  test in this repo: `app.ts` registers `@fastify/rate-limit` only when
+  `config.nodeEnv !== 'test'`, and every suite builds its config with
+  `NODE_ENV: 'test'`, so 11 injected POSTs all return 200 and a "the limit
+  works" assertion passes against nothing. Asserting the 429 needs its OWN app
+  built with `loadConfig({ ...process.env, NODE_ENV: 'development', LOG_LEVEL:
+  'silent' })` — the `silent` level is load-bearing, because `logger: false` is
+  what stops the `development` branch spinning up a `pino-pretty` transport.
+  Evidence: `src/app.ts` (the `nodeEnv !== 'test'` guard),
+  `test/brief-routes.test.ts` ("POST /pulls/:id/brief rate limit (AC-NF-06)").
+
+- **2026-08-29** — A hand-rolled `Db` fake for a repository must name tables via
+  `getTableName(table)` from `drizzle-orm`; `table._.name` is `undefined` on a
+  `pgTable`, and the `TypeError` it throws lands in the CALLER's best-effort
+  `catch` — `PullsService.detail` then silently returns the persisted-detail
+  branch, so `detail.id` is still right and the test passes having exercised the
+  wrong path. Symptom that gave it away: an assertion on the recorded writes
+  failing with `expected [] to include 'insert:pr_files'` while every other
+  assertion was green. Evidence: `test/brief-inert.test.ts` (the PR-sync case),
+  `src/modules/pulls/service.ts:153-171`.
+
+- **2026-08-29** — Every `server/` script has a local-binary equivalent, which
+  is the way out when `pnpm` is not on the shell's PATH (agent shells here) and
+  corepack wants to purge `node_modules` before it will run: `pnpm typecheck` →
+  `./node_modules/.bin/tsc --noEmit -p tsconfig.json`, `pnpm test` →
+  `./node_modules/.bin/vitest run`, `pnpm db:generate` →
+  `./node_modules/.bin/drizzle-kit generate`, `pnpm db:migrate` →
+  `./node_modules/.bin/tsx src/db/migrate.ts`. The migration pair matters most:
+  `db:migrate` is a plain `tsx` entrypoint that reads `DATABASE_URL` through
+  `dotenv/config`, so `server/.env` is picked up either way. Evidence:
+  `server/package.json` `scripts`.
 
 - **2026-08-17** — `app.inject()` does NOT hang on the MCP route's hijacked
   reply, which settles the question that was blocking `test/mcp.it.test.ts`:
@@ -358,6 +432,14 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   throwaway config and delete it:
   `printf '{"extends":"./tsconfig.json","compilerOptions":{"noEmit":true},"include":["test/<file>.test.ts","src/**/*.ts"]}' > .tsc-testcheck.json && ./node_modules/.bin/tsc --noEmit -p .tsc-testcheck.json; rm .tsc-testcheck.json`
   (`src/**` must stay in `include` or the path aliases resolve against nothing).
+  - **2026-08-29** — The check reaches further than the file you name: a new
+    test importing a SHARED helper drags that helper in too, so the first
+    throwaway run over `test/brief-inert.test.ts` failed on
+    `test/helpers/run-executor.ts(175,9): error TS2741: Property
+    'contextSearchRoots' is missing … in type RepoRow` — a fixture that had
+    been stale since the column was added, invisible to `pnpm typecheck` and to
+    vitest alike. Expect to fix someone else's fixture when you first type-check
+    a test that touches a shared harness.
 
 - **2026-08-14** — An it-test that triggers a review can silently reach a REAL
   LLM provider and burn money on any machine whose `~/.devdigest/secrets.json`

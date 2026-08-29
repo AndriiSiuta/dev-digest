@@ -111,3 +111,32 @@ describe("FileCard — per-line severity badge", () => {
     expect(screen.getByText("Suggestion")).toBeInTheDocument();
   });
 });
+
+describe("FileCard — deep-link focus", () => {
+  it("opens a collapsed file and scrolls to the focused line", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    // `open` is state INITIALIZED from `defaultOpen`, so the prop alone could
+    // never reopen this card — the focus effect is what does it (AC-46/AC-47).
+    renderCard({ defaultOpen: false, focus: { line: 3 } });
+
+    expect(screen.getByText("const c = 4;")).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+  });
+
+  it("opens a collapsed file without scrolling when the focus carries no line", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    renderCard({ defaultOpen: false, focus: { line: null } });
+
+    expect(screen.getByText("const a = 1;")).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("leaves a file collapsed when it is not the focus target", () => {
+    renderCard({ defaultOpen: false });
+    expect(screen.queryByText("const a = 1;")).not.toBeInTheDocument();
+  });
+});
