@@ -125,6 +125,18 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-08-29** — A client **value** import from `@devdigest/shared` (e.g. a
+  zod schema for `safeParse`) breaks `next dev`/`build` with
+  `Module not found: Can't resolve './contracts/findings.js'` — the vendored
+  barrel uses `.js`-suffixed ESM specifiers that tsc resolves but the Next
+  bundler does not (no `extensionAlias`). Every existing client import from
+  shared is `import type` (erased at build), so the barrel had never been
+  bundled before; typecheck AND the whole vitest suite stay green — only the
+  running app fails. Keep client imports from `@devdigest/shared` type-only
+  and hand-roll a narrow guard where runtime validation is needed.
+  `client/src/app/agents/[id]/_components/AgentEditor/_components/EvalsTab/EvalsTab.tsx`
+  (`parseExpectation`).
+
 - **2026-08-29** — Adding a data hook to a widely-embedded leaf component
   breaks every test that renders it through a PARENT: `useCreateEvalCase()`
   inside `FindingCard` made `FindingsPanel.test.tsx` fail with `No QueryClient

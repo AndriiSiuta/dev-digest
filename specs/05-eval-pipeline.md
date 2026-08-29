@@ -1,6 +1,6 @@
 # Eval Pipeline — regression protection for review agents
 
-**Status:** draft
+**Status:** shipped
 **Packages touched:** server, client
 **Created:** 2026-08-29
 **Supersedes:** None

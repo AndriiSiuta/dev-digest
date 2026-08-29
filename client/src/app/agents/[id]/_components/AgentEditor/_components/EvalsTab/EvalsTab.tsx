@@ -7,7 +7,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button, Checkbox, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
-import { EvalExpectation } from "@devdigest/shared";
+import type { EvalExpectation } from "@devdigest/shared";
 import type { EvalBatchDetail, EvalBatchSummary, EvalCase, EvalRunRecord } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
 import { EMPTY, formatCostUsd } from "@/lib/format";
@@ -20,6 +20,20 @@ import {
 } from "@/lib/hooks/eval";
 import { COMPARE_LIMIT, KIND_COLOR, SKELETON_ROWS } from "./constants";
 import { s } from "./styles";
+
+/** Narrow a case's `expected_output` without a runtime `@devdigest/shared`
+    import — client code keeps the vendored barrel type-only (its internal
+    `.js`-suffixed ESM imports do not resolve under the Next bundler). */
+function parseExpectation(v: unknown): EvalExpectation | null {
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  return (o.kind === "must_find" || o.kind === "must_not_flag") &&
+    typeof o.file === "string" &&
+    typeof o.start_line === "number" &&
+    typeof o.end_line === "number"
+    ? (v as EvalExpectation)
+    : null;
+}
 
 /** "0.545" → "54.5%", "1" → "100%". */
 function fmtPct(v: number): string {
@@ -91,14 +105,14 @@ function CaseRow({
   onDelete: () => void;
   disabled: boolean;
 }) {
-  const exp = EvalExpectation.safeParse(c.expected_output);
+  const exp = parseExpectation(c.expected_output);
   return (
     <div style={s.row} data-testid={`eval-case-row-${c.id}`}>
       <span style={s.caseName}>{c.name}</span>
       <Badge color={kindColor}>{kindLabel}</Badge>
-      {exp.success && (
+      {exp && (
         <span className="mono" style={s.caseRange}>
-          {exp.data.file}:{exp.data.start_line}–{exp.data.end_line}
+          {exp.file}:{exp.start_line}–{exp.end_line}
         </span>
       )}
       <Button kind="ghost" size="sm" icon="Trash" disabled={disabled} onClick={onDelete}>
@@ -253,9 +267,9 @@ export function EvalsTab({
   const refusedInFlight =
     run.error instanceof ApiError && run.error.code === "eval_run_in_flight";
   const kindMeta = (c: EvalCase): { label: string; color: string } => {
-    const exp = EvalExpectation.safeParse(c.expected_output);
-    if (!exp.success) return { label: t("evalsTab.kind.unknown"), color: KIND_COLOR.unknown };
-    return exp.data.kind === "must_find"
+    const exp = parseExpectation(c.expected_output);
+    if (!exp) return { label: t("evalsTab.kind.unknown"), color: KIND_COLOR.unknown };
+    return exp.kind === "must_find"
       ? { label: t("evalsTab.kind.mustFind"), color: KIND_COLOR.must_find }
       : { label: t("evalsTab.kind.mustNotFlag"), color: KIND_COLOR.must_not_flag };
   };
