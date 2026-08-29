@@ -108,6 +108,23 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   at the delivery ring. Evidence: `src/platform/container.ts` (`get blast()` /
   `get smartDiff()`), `src/modules/blast/types.ts` (`BlastFacade`).
 
+- **2026-08-29** — The PR Brief's grounding gate treats an invented FILE
+  reference and an invented ENDPOINT reference differently, and the asymmetry is
+  deliberate rather than an oversight: a `file_ref` not among the PR's changed
+  files is REMOVED from the risk (AC-06 asks for exactly that), while a risk
+  citing an `endpoint_ref` absent from the blast summary is DROPPED WHOLE even
+  when all its `file_refs` are real — AC-08's stated outcome is that an invented
+  endpoint can neither survive into the stored brief nor keep a risk alive. Both
+  drops are recorded as `{target, ref, reason}`, and a dropped risk is
+  identified by its ORDINAL (`risk#0`), never its title, because those records
+  are logged and model prose must not be (AC-NF-02). Second non-obvious pairing
+  in the same module: the grounding universe is
+  `pullsRepo.getFiles(prId).map(f => f.path)`, NOT the Smart Diff path set —
+  Smart Diff legitimately omits binary/oversized/unparseable files, so
+  grounding against it would silently drop a risk citing a real changed file.
+  Evidence: `src/modules/brief/grounding.ts`, `src/modules/brief/service.ts`
+  (`generate`, step "gate first, level second"), `test/brief-grounding.test.ts`.
+
 - **2026-08-14** — `PromptAssembly` has NO diff field: `assemblePrompt` embeds
   the diff inside `user` as `## Diff to review` + `wrapUntrusted('diff', …)`, so
   every other section (`intent`/`skills`/`specs`/`callers`/`repo_map`/
@@ -169,6 +186,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
       `src/platform/sse.ts:19-24`, `src/modules/mcp/types.ts` (`McpRunBus`).
 
 - **2026-08-05** — `modules/settings/feature-models.ts` is the one cross-module import the arch rules allow into another module's folder — `no-cross-module-internals` bans only `service|repository|routes|helpers|run-executor|diff-loader|findings|status`, so a system LLM feature resolves its model with a direct `import { resolveFeatureModel } from '../settings/feature-models.js'` rather than through the container. Evidence: `.dependency-cruiser.cjs:29-40`, `src/modules/conventions/service.ts:11` (`pnpm arch` clean).
+
+- **2026-08-29** — A `MockProjectContextDocs` fixture gets its `type` from the
+  ROOT it was found under (`docTypeForRoot`), not from its own path or content,
+  so a document written as `{'foo/a.md': '…'}` is invisible to `list()` (no
+  configured root matches) and one under `docs/` is typed `doc`. Anything
+  filtering on `type === 'spec'` — the PR Brief's `selectSpecDocs` — therefore
+  needs its fixtures under `specs/`, and a mis-rooted fixture makes the test
+  pass with zero documents instead of failing. Evidence:
+  `src/adapters/mocks.ts` (`MockProjectContextDocs.list`),
+  `src/adapters/projectcontext/paths.ts`, `test/brief-service.test.ts`
+  ("document selection").
 
 - **2026-08-05** — `src/adapters/mocks.ts` doubles as a spec for unbuilt features: `MockLLMOptions.structuredBySchema` names the schemas of a conventions flow that did not exist (`'ConventionFileSelection'` then `'ConventionExtraction'`), so the intended two-step design — model RANKS a code-built candidate file list, then extracts — is discoverable there before any module is written. Evidence: `src/adapters/mocks.ts:46-52`.
 

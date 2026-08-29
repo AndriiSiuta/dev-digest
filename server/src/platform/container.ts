@@ -38,6 +38,9 @@ import type { BlastFacade } from '../modules/blast/types.js';
 import { BlastService } from '../modules/blast/service.js';
 import type { SmartDiffFacade } from '../modules/smart-diff/types.js';
 import { SmartDiffService } from '../modules/smart-diff/service.js';
+import type { BriefFacade } from '../modules/brief/types.js';
+import { BriefService } from '../modules/brief/service.js';
+import { BriefRepository } from '../modules/brief/repository.js';
 import type {
   ProjectContextDocs,
   ProjectContextFacade,
@@ -72,6 +75,8 @@ export interface ContainerOverrides {
   blast?: BlastFacade;
   /** smart-diff facade — tests inject mock SmartDiffFacade implementations. */
   smartDiff?: SmartDiffFacade;
+  /** brief facade — tests inject mock BriefFacade implementations. */
+  brief?: BriefFacade;
   /** project-context document discovery/read — tests inject MockProjectContextDocs. */
   projectContextDocs?: ProjectContextDocs;
   /** project-context facade — the reviews run-executor resolves through this. */
@@ -110,6 +115,8 @@ export class Container {
   private _intent?: IntentFacade;
   private _blast?: BlastFacade;
   private _smartDiff?: SmartDiffFacade;
+  private _brief?: BriefFacade;
+  private _briefRepo?: BriefRepository;
   private _projectContextDocs?: ProjectContextDocs;
   private _projectContext?: ProjectContextFacade;
   private _reviewRunner?: ReviewRunner;
@@ -210,6 +217,28 @@ export class Container {
     if (this.overrides.smartDiff) return this.overrides.smartDiff;
     this._smartDiff ??= new SmartDiffService(this.pullsRepo, this.reviewRepo);
     return this._smartDiff;
+  }
+
+  /**
+   * `pr_brief`. The brief module owns the table; the repository is constructed
+   * here rather than inside `BriefService` so the hermetic harness has a seam to
+   * inject a recording double through (an unwired one would make an
+   * "is the feature inert?" assertion pass vacuously — `server/INSIGHTS.md`,
+   * 2026-08-28).
+   */
+  get briefRepo(): BriefRepository {
+    return (this._briefRepo ??= new BriefRepository(this.db));
+  }
+
+  /**
+   * The brief facade. The routes and the AC-38 inertness test reach the PR
+   * Brief through this interface; tests inject a mock via
+   * `ContainerOverrides.brief`.
+   */
+  get brief(): BriefFacade {
+    if (this.overrides.brief) return this.overrides.brief;
+    this._brief ??= new BriefService(this);
+    return this._brief;
   }
 
   /**
