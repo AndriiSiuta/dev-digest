@@ -1,6 +1,6 @@
 # PR Brief — the Why + Risk card
 
-**Status:** agreed
+**Status:** shipped
 **Packages touched:** server, client
 **Created:** 2026-08-29
 **Clarifications resolved:** 2026-08-29 (all 14 — see "Resolution log")

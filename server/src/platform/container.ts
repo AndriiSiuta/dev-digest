@@ -77,6 +77,13 @@ export interface ContainerOverrides {
   smartDiff?: SmartDiffFacade;
   /** brief facade — tests inject mock BriefFacade implementations. */
   brief?: BriefFacade;
+  /**
+   * `pr_brief` persistence — tests inject a recording double to assert on what
+   * was (or was not) written. Present because `briefRepo`'s own doc comment
+   * promises this seam, and AC-38's "no brief was persisted" assertion is the
+   * thing that needs it.
+   */
+  briefRepo?: BriefRepository;
   /** project-context document discovery/read — tests inject MockProjectContextDocs. */
   projectContextDocs?: ProjectContextDocs;
   /** project-context facade — the reviews run-executor resolves through this. */
@@ -227,6 +234,7 @@ export class Container {
    * 2026-08-28).
    */
   get briefRepo(): BriefRepository {
+    if (this.overrides.briefRepo) return this.overrides.briefRepo;
     return (this._briefRepo ??= new BriefRepository(this.db));
   }
 

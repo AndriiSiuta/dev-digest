@@ -85,7 +85,7 @@ The rule it enforces, stated as `reviewer-core/INSIGHTS.md` *Decisions* 2026-07-
 - A `review_focus` item survives iff its `file` is in the input file set; otherwise it is dropped with a reason (AC-07, AC-44).
 - A `Risk`'s `file_refs` are filtered to the input file set; each removed ref is recorded (AC-06).
 - **A `Risk` survives only if at least one of its `file_refs` is an input file.** *Interpretation flag (maintainer: accepted):* AC-06 alone only requires removing the reference, but AC-09 ("WHEN the system drops a risk…") and AC-31 ("IF no risk survives grounding…") both presuppose risks can fail the gate, and the cited precedent is "cite a real X or be dropped". A risk citing nothing in this PR is therefore dropped, not kept ref-less.
-- **AC-08 — endpoints.** *Interpretation flag (maintainer: accepted).* Neither `Risk` nor `Brief` has a field able to hold an endpoint reference, and the spec forbids extending either. The implementable form: the **model's draft schema** (brief-local, `prompt.ts`, never a wire type) carries `endpoint_refs: string[]` per risk; the gate filters those against the blast summary's endpoint set, records every removal (AC-09), counts a surviving endpoint ref as grounding evidence alongside `file_refs`, and then discards `endpoint_refs` when mapping the draft to the wire `Risk`. Net effect, and what the test asserts: an invented endpoint can never survive into the stored brief nor keep a risk alive, and the drop is recorded. This is a real, verifiable mechanism — it is *not* a string scan over model prose, which `reviewer-core/src/review/scope.ts:5-8` forecloses ("in code, like the grounding gate — a model instruction alone is not a guarantee").
+- **AC-08 — endpoints.** *Interpretation flag (maintainer: accepted).* Neither `Risk` nor `Brief` has a field able to hold an endpoint reference, and the spec forbids extending either. The implementable form: the **model's draft schema** (brief-local, `prompt.ts`, never a wire type) carries `endpoint_refs: string[]` per risk; the gate filters those against the blast summary's endpoint set, records every removal (AC-09), and then discards `endpoint_refs` when mapping the draft to the wire `Risk`. **The rule is deliberately asymmetric, and stricter than "endpoint refs count as evidence alongside `file_refs`":** an invented *file* reference is removed from its risk (AC-06), but an invented *endpoint* reference **drops the whole risk** (AC-08), because AC-08's stated outcome is that an invented endpoint can neither survive nor keep a risk alive. Maintainer ruling, 2026-08-29; implemented and documented at `server/src/modules/brief/grounding.ts:20-26,121-131`. Net effect, and what the test asserts: an invented endpoint can never survive into the stored brief nor keep a risk alive, and the drop is recorded. This is a real, verifiable mechanism — it is *not* a string scan over model prose, which `reviewer-core/src/review/scope.ts:5-8` forecloses ("in code, like the grounding gate — a model instruction alone is not a guarantee").
 
 **Decision 3 — the deep link: query params, threaded as props.**
 
@@ -558,3 +558,20 @@ deliberate choices the note re-argues.
 
 **Task numbering, task count, the AC coverage table and all 59 AC-IDs are unchanged.** Every fix
 sharpened how a task is executed or verified; none moved an AC between tasks.
+
+**2026-08-29 — post-implementation, from `plan-verifier`.** The verifier reported 59/59 AC
+satisfied and 16/16 tasks landed, and caught two places where this document had drifted from the
+code. Both are corrected above rather than left for a reader to trip over:
+
+- **Decision 2's endpoint rule.** The prose said a surviving endpoint ref "counts as grounding
+  evidence alongside `file_refs`", which would let a risk with valid `file_refs` survive an
+  invented endpoint. The implementation is stricter — an invented endpoint drops the whole risk —
+  and that was a maintainer ruling accepted during batch 2, not a drift. Decision 2 now states it.
+- **`ContainerOverrides.briefRepo` was missing.** `briefRepo`'s doc comment promised a test seam
+  that did not exist, leaving it the one dependency in this feature not injectable the sanctioned
+  way. The slot has been added and the getter honours it.
+
+Two implementation deviations the verifier found that were *not* self-reported, both accepted as
+written: `## PR description` sits at its own priority below the intent record (the spec's
+seven-entry ladder omits the section entirely), and the per-symbol downstream detail is its own
+section rather than a sub-section of `## Blast radius`. Neither changes an AC.
