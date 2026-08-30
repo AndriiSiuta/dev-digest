@@ -176,10 +176,16 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
   in `onion-architecture`'s Enforcement section, and the 2026-08-05 audit note
   below says it was wired — but `server/package.json` on `main` has no `arch`
   script; only the pieces landed (`server/.dependency-cruiser.cjs`,
-  `dependency-cruiser` ^17.4.3 in devDependencies). Until the script exists,
-  run `cd server && pnpm exec depcruise --config .dependency-cruiser.cjs src`;
-  agent prompts must not rely on `pnpm arch`. Evidence:
-  `grep '"arch"' server/package.json` → no match.
+  `dependency-cruiser` ^17.4.3 in devDependencies). Worse (confirmed
+  2026-08-30): the failure is **silent** — pnpm's script-miss fallback executes
+  coreutils `/usr/bin/arch`, which prints `x86_64` and exits 0, so the
+  layer-rules gate appears to pass while depcruise never ran. Until the script
+  exists, run `cd server && pnpm exec depcruise --config
+  .dependency-cruiser.cjs src` (or `./node_modules/.bin/depcruise` when pnpm's
+  pre-run dep check aborts without a TTY); agent prompts must not rely on
+  `pnpm arch`, and `x86_64` in a gate log means the gate did not run. Evidence:
+  `grep '"arch"' server/package.json` → no match; `cd server && pnpm arch` →
+  `x86_64`, exit 0.
 
 - **2026-08-14** — Claude Code subagent frontmatter: `skills:` preloads the
   full skill content into the subagent at startup, but a `tools:` allowlist
