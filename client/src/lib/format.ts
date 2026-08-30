@@ -42,3 +42,14 @@ export function formatTokenCount(n: number): string {
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+
+/** Ratio metric as a percentage: "0.545" → "54.5%", "1" → "100%". */
+export function formatPct(v: number): string {
+  return `${+(v * 100).toFixed(1)}%`;
+}
+
+/** `toLocaleString`, with the raw ISO kept when it is unparseable. */
+export function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}

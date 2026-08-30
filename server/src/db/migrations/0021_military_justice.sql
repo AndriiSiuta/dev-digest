@@ -1,0 +1,1 @@
+CREATE INDEX "eval_cases_workspace_idx" ON "eval_cases" USING btree ("workspace_id");

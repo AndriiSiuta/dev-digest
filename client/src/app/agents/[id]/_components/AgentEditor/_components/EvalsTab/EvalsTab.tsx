@@ -10,7 +10,7 @@ import { Badge, Button, Checkbox, EmptyState, ErrorState, Skeleton } from "@devd
 import type { EvalExpectation } from "@devdigest/shared";
 import type { EvalBatchDetail, EvalBatchSummary, EvalCase, EvalRunRecord } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
-import { EMPTY, formatCostUsd } from "@/lib/format";
+import { EMPTY, formatCostUsd, formatPct, formatWhen } from "@/lib/format";
 import {
   useAgentEvalCases,
   useDeleteEvalCase,
@@ -35,21 +35,10 @@ function parseExpectation(v: unknown): EvalExpectation | null {
     : null;
 }
 
-/** "0.545" → "54.5%", "1" → "100%". */
-function fmtPct(v: number): string {
-  return `${+(v * 100).toFixed(1)}%`;
-}
-
 /** Signed delta between two ratio metrics, e.g. "+12.5%" / "-20%". */
 function fmtDelta(a: number, b: number): string {
   const d = +((b - a) * 100).toFixed(1);
   return `${d > 0 ? "+" : ""}${d}%`;
-}
-
-/** `toLocaleString`, with the raw ISO kept when it is unparseable. */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
 /** The per-case cell state a comparison side renders. */
@@ -143,9 +132,9 @@ function BatchRow({
       <div style={s.historyMeta}>
         <Badge color="var(--accent)">{versionLabel}</Badge>
         <span className="mono">{b.model}</span>
-        <span className="mono">{fmtPct(b.recall)}</span>
-        <span className="mono">{fmtPct(b.precision)}</span>
-        <span className="mono">{fmtPct(b.citation_accuracy)}</span>
+        <span className="mono">{formatPct(b.recall)}</span>
+        <span className="mono">{formatPct(b.precision)}</span>
+        <span className="mono">{formatPct(b.citation_accuracy)}</span>
         <span className="mono">
           {costLabel}: {formatCostUsd(b.cost_usd)}
         </span>
@@ -192,8 +181,8 @@ function ComparisonPanel({
         {metrics.map((m) => (
           <React.Fragment key={m.label}>
             <span>{m.label}</span>
-            <span className="mono">{fmtPct(m.a)}</span>
-            <span className="mono">{fmtPct(m.b)}</span>
+            <span className="mono">{formatPct(m.a)}</span>
+            <span className="mono">{formatPct(m.b)}</span>
             <span className="mono" style={s.delta}>
               {fmtDelta(m.a, m.b)}
             </span>
@@ -250,7 +239,15 @@ export function EvalsTab({
     v != null ? t("evalsTab.version", { version: v }) : t("evalsTab.versionUnknown");
 
   if (cases.isError || batches.isError) {
-    return <ErrorState body={t("evalsTab.loadError")} onRetry={() => void cases.refetch()} />;
+    return (
+      <ErrorState
+        body={t("evalsTab.loadError")}
+        onRetry={() => {
+          void cases.refetch();
+          void batches.refetch();
+        }}
+      />
+    );
   }
   if (cases.isLoading || batches.isLoading) {
     return (
@@ -327,11 +324,11 @@ export function EvalsTab({
         </div>
         {run.data && (
           <div style={s.metricsRow}>
-            <MetricBlock label={t("evalsTab.metrics.recall")} value={fmtPct(run.data.recall)} />
-            <MetricBlock label={t("evalsTab.metrics.precision")} value={fmtPct(run.data.precision)} />
+            <MetricBlock label={t("evalsTab.metrics.recall")} value={formatPct(run.data.recall)} />
+            <MetricBlock label={t("evalsTab.metrics.precision")} value={formatPct(run.data.precision)} />
             <MetricBlock
               label={t("evalsTab.metrics.citation")}
-              value={fmtPct(run.data.citation_accuracy)}
+              value={formatPct(run.data.citation_accuracy)}
             />
             <MetricBlock
               label={t("evalsTab.latestHeading")}

@@ -112,9 +112,9 @@ describe("FindingCard — eval-case control (AC-11..13)", () => {
         defaultExpanded
       />,
     );
-    const pendingBtn = screen
-      .getByText(evalMessages.findingAction.adding)
-      .closest("button") as HTMLButtonElement;
+    const pendingBtn = screen.getByRole("button", {
+      name: evalMessages.findingAction.adding,
+    });
     expect(pendingBtn).toBeDisabled();
     fireEvent.click(pendingBtn);
     expect(mockCreate.mutate).toHaveBeenCalledTimes(1);

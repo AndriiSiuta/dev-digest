@@ -341,7 +341,7 @@ export class EvalService implements EvalFacade {
     const recent = groupByBatch(rows)
       .map((group) => ({
         ...toBatchSummary(group, group[0]!.ownerId),
-        agent_name: (group[0] as { agentName?: string }).agentName ?? '',
+        agent_name: group[0]!.agentName,
       }))
       .sort((a, b) => (a.ran_at < b.ran_at ? 1 : -1))
       .slice(0, EVAL_DASHBOARD_RECENT_CAP);

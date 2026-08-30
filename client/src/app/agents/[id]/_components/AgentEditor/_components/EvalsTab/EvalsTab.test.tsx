@@ -160,9 +160,9 @@ describe("EvalsTab — run (AC-32/AC-33)", () => {
     cleanup();
     mockState.run.isPending = true;
     renderTab();
-    const pendingBtn = screen
-      .getByText(evalMessages.evalsTab.runningBatch)
-      .closest("button") as HTMLButtonElement;
+    const pendingBtn = screen.getByRole("button", {
+      name: evalMessages.evalsTab.runningBatch,
+    });
     expect(pendingBtn).toBeDisabled();
     fireEvent.click(pendingBtn);
     expect(mockState.run.mutate).toHaveBeenCalledTimes(1);

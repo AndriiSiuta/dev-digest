@@ -23,6 +23,9 @@ export const evalCases = pgTable(
   (t) => ({
     // An agent's case list — the hot read of the eval module.
     ownerIdx: index('eval_cases_owner_idx').on(t.ownerKind, t.ownerId),
+    // FK column — Postgres does not index FKs; covers workspace-scoped reads
+    // and the ON DELETE CASCADE path from workspaces.
+    workspaceIdx: index('eval_cases_workspace_idx').on(t.workspaceId),
   }),
 );
 

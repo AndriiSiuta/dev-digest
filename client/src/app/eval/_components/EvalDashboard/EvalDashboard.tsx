@@ -7,19 +7,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
+import { formatPct, formatWhen } from "@/lib/format";
 import { useEvalDashboard } from "@/lib/hooks/eval";
 import { s } from "./styles";
-
-/** "0.545" → "54.5%", "1" → "100%". */
-function fmtPct(v: number): string {
-  return `${+(v * 100).toFixed(1)}%`;
-}
-
-/** `toLocaleString`, with the raw ISO kept when it is unparseable. */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-}
 
 export function EvalDashboard() {
   const t = useTranslations("eval");
@@ -79,13 +69,13 @@ export function EvalDashboard() {
               <td style={{ ...s.td, ...s.agentCell }}>{b.agent_name}</td>
               <td style={s.td}>{formatWhen(b.ran_at)}</td>
               <td className="mono" style={s.td}>
-                {fmtPct(b.recall)}
+                {formatPct(b.recall)}
               </td>
               <td className="mono" style={s.td}>
-                {fmtPct(b.precision)}
+                {formatPct(b.precision)}
               </td>
               <td className="mono" style={s.td}>
-                {fmtPct(b.citation_accuracy)}
+                {formatPct(b.citation_accuracy)}
               </td>
             </tr>
           ))}
